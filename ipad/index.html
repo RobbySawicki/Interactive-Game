@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>Tap to Win</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        background: #0b0d12;
+        color: #fff;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        overscroll-behavior: none;
+        touch-action: manipulation;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+      #app {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+      #game {
+        width: 100%;
+        height: 100%;
+      }
+      .overlay {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 24px;
+        background: rgba(11, 13, 18, 0.85);
+        backdrop-filter: blur(8px);
+        text-align: center;
+        padding: 40px;
+      }
+      .overlay h1 {
+        font-size: 64px;
+        margin: 0;
+        letter-spacing: -1px;
+      }
+      .overlay p {
+        font-size: 24px;
+        margin: 0;
+        opacity: 0.8;
+      }
+      button {
+        font-size: 28px;
+        padding: 20px 48px;
+        border-radius: 999px;
+        border: none;
+        background: #ff3366;
+        color: #fff;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button:active {
+        transform: scale(0.97);
+      }
+      #hud {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        right: 20px;
+        display: flex;
+        justify-content: space-between;
+        font-size: 28px;
+        font-weight: 600;
+        pointer-events: none;
+        text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+      }
+      .hidden {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div id="game"></div>
+      <div id="hud" class="hidden">
+        <span id="score">0</span>
+        <span id="timer">30</span>
+      </div>
+      <div id="start" class="overlay">
+        <h1>Tap to Win</h1>
+        <p>Hit as many targets as you can in 30 seconds.</p>
+        <button id="startBtn">Start</button>
+      </div>
+      <div id="end" class="overlay hidden">
+        <h1 id="finalScore">0</h1>
+        <p>Final score</p>
+        <button id="againBtn">Play again</button>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+      import {
+        getDatabase,
+        ref,
+        set,
+        update,
+        serverTimestamp,
+      } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+      import { firebaseConfig, SESSION_ID } from "../shared/firebase-config.js";
+
+      const app = initializeApp(firebaseConfig);
+      const db = getDatabase(app);
+      const sessionRef = ref(db, `sessions/${SESSION_ID}`);
+
+      const send = (data) =>
+        update(sessionRef, { ...data, updatedAt: serverTimestamp() }).catch(
+          (e) => console.warn("firebase write failed", e)
+        );
+
+      const ROUND_SECONDS = 30;
+      let score = 0;
+      let timeLeft = ROUND_SECONDS;
+      let scene = null;
+      let timerEvent = null;
+
+      class GameScene extends Phaser.Scene {
+        constructor() {
+          super("game");
+        }
+        create() {
+          scene = this;
+          this.cameras.main.setBackgroundColor("#0b0d12");
+          this.targets = this.add.group();
+          this.spawnTimer = this.time.addEvent({
+            delay: 700,
+            loop: true,
+            callback: () => this.spawn(),
+          });
+          this.spawnTimer.paused = true;
+        }
+        spawn() {
+          const { width, height } = this.scale;
+          const r = 80;
+          const x = Phaser.Math.Between(r, width - r);
+          const y = Phaser.Math.Between(r + 80, height - r);
+          const target = this.add.circle(x, y, r, 0xff3366);
+          target.setStrokeStyle(6, 0xffffff);
+          target.setInteractive({ useHandCursor: true });
+          target.setScale(0);
+          this.tweens.add({
+            targets: target,
+            scale: 1,
+            duration: 200,
+            ease: "Back.easeOut",
+          });
+          this.time.delayedCall(1500, () => target.destroy());
+          target.on("pointerdown", () => {
+            score += 1;
+            document.getElementById("score").textContent = score;
+            send({ score, event: "hit", at: Date.now() });
+            this.tweens.add({
+              targets: target,
+              scale: 1.4,
+              alpha: 0,
+              duration: 150,
+              onComplete: () => target.destroy(),
+            });
+          });
+        }
+        startRound() {
+          score = 0;
+          timeLeft = ROUND_SECONDS;
+          document.getElementById("score").textContent = "0";
+          document.getElementById("timer").textContent = ROUND_SECONDS;
+          this.spawnTimer.paused = false;
+          timerEvent = this.time.addEvent({
+            delay: 1000,
+            repeat: ROUND_SECONDS - 1,
+            callback: () => {
+              timeLeft -= 1;
+              document.getElementById("timer").textContent = timeLeft;
+              if (timeLeft <= 0) this.endRound();
+            },
+          });
+        }
+        endRound() {
+          this.spawnTimer.paused = true;
+          this.targets.clear(true, true);
+          send({ score, event: "end", at: Date.now() });
+          document.getElementById("hud").classList.add("hidden");
+          document.getElementById("finalScore").textContent = score;
+          document.getElementById("end").classList.remove("hidden");
+        }
+      }
+
+      new Phaser.Game({
+        type: Phaser.AUTO,
+        parent: "game",
+        backgroundColor: "#0b0d12",
+        scale: {
+          mode: Phaser.Scale.RESIZE,
+          autoCenter: Phaser.Scale.CENTER_BOTH,
+        },
+        scene: [GameScene],
+      });
+
+      const begin = () => {
+        document.getElementById("start").classList.add("hidden");
+        document.getElementById("end").classList.add("hidden");
+        document.getElementById("hud").classList.remove("hidden");
+        set(sessionRef, {
+          score: 0,
+          event: "start",
+          startedAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+        scene.startRound();
+      };
+
+      document.getElementById("startBtn").addEventListener("click", begin);
+      document.getElementById("againBtn").addEventListener("click", begin);
+    </script>
+  </body>
+</html>
