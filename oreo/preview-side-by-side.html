@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OREO × Spider-Man — iPad + Truck Live Preview</title>
+  <style>
+    html, body {
+      margin: 0; padding: 0;
+      width: 100%; min-height: 100vh;
+      background: #0a0a0a;
+      font-family: 'Bangers', 'Impact', system-ui, sans-serif;
+      color: #fff;
+      overflow-x: hidden;
+    }
+    * { box-sizing: border-box; }
+
+    .page {
+      display: flex; flex-direction: column;
+      gap: 22px; padding: 26px 28px 40px;
+      max-width: 1700px; margin: 0 auto;
+    }
+
+    .header {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 18px; padding-bottom: 14px;
+      border-bottom: 2px solid rgba(255,255,255,0.12);
+    }
+    .header h1 {
+      margin: 0;
+      font-family: 'Bangers', 'Impact', sans-serif;
+      font-size: 38px; letter-spacing: 0.04em;
+      color: #FFD60A;
+      -webkit-text-stroke: 2px #0a0a0a;
+      text-shadow: 4px 4px 0 #0a0a0a;
+    }
+    .header p {
+      margin: 0; max-width: 540px;
+      font-family: Inter, system-ui, sans-serif;
+      font-size: 13px; line-height: 1.5; color: #aaa;
+    }
+
+    /* ──────── activation truck mock ──────── */
+    .truck-stage {
+      position: relative;
+      background: linear-gradient(180deg, #1a1a1a 0%, #0a0a0a 100%);
+      border-radius: 14px;
+      padding: 32px 28px 60px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6) inset, 0 4px 30px rgba(0,0,0,0.4);
+      overflow: hidden;
+    }
+    .truck-stage::before {
+      /* asphalt floor */
+      content: '';
+      position: absolute; left: 0; right: 0; bottom: 0; height: 50px;
+      background: repeating-linear-gradient(90deg, #1a1a1a 0 40px, #222 40px 80px);
+      border-top: 2px solid #444;
+    }
+
+    .truck-body {
+      position: relative;
+      display: grid;
+      grid-template-columns: minmax(0, 2.4fr) minmax(0, 1fr);
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .panel-label {
+      position: absolute; top: -12px; left: 14px;
+      font-family: 'Bangers', sans-serif; font-size: 14px;
+      letter-spacing: 0.14em;
+      background: #E62429; color: #fff;
+      padding: 4px 12px; border-radius: 4px;
+      border: 2px solid #0a0a0a;
+      box-shadow: 3px 3px 0 #0a0a0a;
+      z-index: 5;
+    }
+
+    /* truck side panel — wide LED */
+    .led-side {
+      position: relative;
+      background: #000;
+      border: 6px solid #1a1a1a;
+      border-radius: 6px;
+      box-shadow:
+        0 0 0 3px #2a2a2a,
+        0 0 30px rgba(0, 176, 255, 0.15),
+        inset 0 0 30px rgba(0,0,0,0.8);
+      aspect-ratio: 1007 / 432;
+      overflow: hidden;
+    }
+    .led-side iframe {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      border: 0; display: block;
+      background: #000;
+    }
+
+    /* truck rear panel — square */
+    .led-rear {
+      position: relative;
+      background: #000;
+      border: 6px solid #1a1a1a;
+      border-radius: 6px;
+      box-shadow:
+        0 0 0 3px #2a2a2a,
+        0 0 30px rgba(255, 214, 10, 0.12),
+        inset 0 0 30px rgba(0,0,0,0.8);
+      aspect-ratio: 1 / 1;
+      overflow: hidden;
+    }
+    .led-rear iframe {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      border: 0; display: block;
+      background: #000;
+    }
+
+    /* ──────── ipad row ──────── */
+    .ipad-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 24px;
+      align-items: start;
+    }
+
+    .ipad-shell {
+      position: relative;
+      margin: 0 auto;
+      width: 100%;
+      max-width: 980px;
+      padding: 18px 18px 18px 18px;
+      background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
+      border-radius: 28px;
+      box-shadow:
+        0 0 0 2px #444 inset,
+        0 24px 50px rgba(0,0,0,0.5),
+        0 0 80px rgba(255, 214, 10, 0.06);
+    }
+    .ipad-screen {
+      position: relative;
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+      aspect-ratio: 4 / 3;
+      box-shadow: 0 0 0 2px #0a0a0a inset;
+    }
+    .ipad-screen iframe {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      border: 0; display: block;
+      background: #000;
+    }
+    .ipad-stand {
+      position: absolute;
+      left: 50%; bottom: -32px;
+      transform: translateX(-50%);
+      width: 240px; height: 32px;
+      background: linear-gradient(180deg, #1a1a1a 0%, #0a0a0a 100%);
+      border-radius: 0 0 24px 24px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+    }
+
+    /* ──────── narration column ──────── */
+    .notes {
+      background: #14142a;
+      border: 2px solid #2a2a4f;
+      border-radius: 12px;
+      padding: 20px;
+      font-family: Inter, system-ui, sans-serif;
+      color: #d8d8e8;
+      align-self: start;
+      position: sticky; top: 20px;
+    }
+    .notes h2 {
+      font-family: 'Bangers', sans-serif;
+      font-size: 22px; letter-spacing: 0.06em;
+      color: #00B0FF;
+      margin: 0 0 12px;
+      -webkit-text-stroke: 1px #0a0a0a;
+    }
+    .notes ol {
+      margin: 0; padding-left: 22px;
+      font-size: 13px; line-height: 1.6;
+    }
+    .notes li { margin-bottom: 10px; }
+    .notes li b { color: #FFD60A; font-weight: 800; }
+
+    .legend {
+      display: flex; gap: 12px; flex-wrap: wrap;
+      font-family: Inter, system-ui, sans-serif;
+      font-size: 12px; color: #999;
+      margin-top: 10px;
+    }
+    .pill {
+      padding: 4px 10px; border-radius: 999px;
+      background: #1a1a2a; border: 1px solid #2a2a4f;
+    }
+
+    /* layout adjustments */
+    @media (max-width: 1100px) {
+      .ipad-row { grid-template-columns: 1fr; }
+      .notes { position: static; }
+    }
+    @media (max-width: 760px) {
+      .truck-body { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+
+    <header class="header">
+      <div>
+        <h1>SLING THE STUF — TRUCK + IPAD LIVE</h1>
+        <div class="legend">
+          <span class="pill">Same-tab BroadcastChannel sync</span>
+          <span class="pill">Real gameplay drives the truck</span>
+          <span class="pill">Both URLs are GitHub Pages-ready</span>
+        </div>
+      </div>
+      <p>
+        Play the iPad below — every throw, hit, miss, and final score updates
+        the truck&apos;s LED side panel and rear QR panel in real time. This is
+        exactly what spectators see when they walk past the activation.
+      </p>
+    </header>
+
+    <!-- Truck mock: side LED + rear LED -->
+    <section class="truck-stage">
+      <div class="truck-body">
+        <div class="led-side">
+          <span class="panel-label">TRUCK · SIDE LED</span>
+          <iframe src="truck/index.html" title="Truck side LED"></iframe>
+        </div>
+        <div class="led-rear">
+          <span class="panel-label">REAR · QR</span>
+          <iframe src="truck/index.html?panel=rear" title="Truck rear panel"></iframe>
+        </div>
+      </div>
+    </section>
+
+    <!-- iPad below the truck -->
+    <section class="ipad-row">
+      <div class="ipad-shell">
+        <div class="ipad-screen">
+          <iframe src="ipad/index.html" title="iPad game"></iframe>
+        </div>
+        <div class="ipad-stand"></div>
+      </div>
+
+      <aside class="notes">
+        <h2>WHAT TO LOOK FOR</h2>
+        <ol>
+          <li><b>Enter a name</b> on the iPad — when you click <i>SLING IT</i>, the truck side panel flashes <i>NEW HERO</i> with your name.</li>
+          <li><b>Drag the cookie</b> — the iPad&apos;s power meter fills 0 → 100%. Release. The truck reacts the instant the projectile leaves the slingshot.</li>
+          <li><b>Land a hit</b> and watch the <i>combo</i> on the truck climb. Three+ in a row triggers a giant <i>POW!</i> burst on the side panel.</li>
+          <li><b>Score updates</b> live on the truck LED. The rear panel pulses with the latest hit value and shows the QR for the campaign drop.</li>
+          <li><b>Time runs out</b> — the truck shows your final score and name on the leaderboard rail. Spectators see the same thing the player does.</li>
+        </ol>
+      </aside>
+    </section>
+
+  </div>
+</body>
+</html>
