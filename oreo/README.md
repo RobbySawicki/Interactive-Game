@@ -1,29 +1,37 @@
 # Interactive-Game
 
-OREO × Marvel "Stuf of Legends" — iPad slingshot game with synced LED truck spectator screens.
+OREO × Marvel "Stuf of Legends" — iPad slingshot game with a synced LED truck spectator screen.
 
-## Play
+## What's deployed
 
-Push to GitHub → enable Pages on `main` branch (root folder).
+| URL | What you see | Where it runs |
+|---|---|---|
+| `/ipad/` | **The slingshot game.** Full-bleed Marvel comic background, drag-back-and-release input, 30-second sprint, unlimited cookies, combo multiplier. Touch-only, locks scroll, no UI chrome. | Player's iPad in the activation booth |
+| `/truck/` | **Side LED panel.** Big live score (left 75%), `×combo` + reaction word ("AMAZING!", "POW!", "LEGENDARY!"), live leaderboard (right 25%). Letterboxes to native 1007×432 banner aspect on any screen. | Truck-side laptop fullscreen, HDMI to LED side panels (×2) |
+| `/truck/?panel=rear` | **Rear LED panel.** Static comic-burst frame with "SCAN TO HELP SAVE THE UNIVERSE" wrapping a sample QR. Letterboxes to 432×432 square. | Rear-square LED panel |
 
-- **iPad URL:** `https://<you>.github.io/Interactive-Game/ipad/`
-- **Truck URL:** `https://<you>.github.io/Interactive-Game/truck/`
+Each page is a single self-contained HTML file (~1.6 MB, all assets inlined). No build step. No backend. Open and play.
 
-Open both URLs side-by-side on the same browser to see the sync demo. The page contains the full prototype canvas with autoplay demo + tweakable controls.
+## Sync
+
+For local demo (same browser, two tabs side-by-side), the iPad and truck pages already sync via `BroadcastChannel`.
+
+For production (iPad in someone's hand, truck laptop on a different network), swap to Firebase — see `docs/firebase-setup.md`. ~30 lines of code, free tier covers it.
+
+## GitHub Pages setup
+
+1. Repo → **Settings → Pages**
+2. **Source:** Deploy from branch · **Branch:** `main` · **Folder:** `/ (root)` → **Save**
+3. Wait ~30 sec. URLs:
+   - `https://robbysawicki.github.io/Interactive-Game/ipad/`
+   - `https://robbysawicki.github.io/Interactive-Game/truck/`
+   - `https://robbysawicki.github.io/Interactive-Game/truck/?panel=rear`
 
 ## Files in this repo
 
 | Path | What it is |
 |---|---|
-| `ipad/index.html` | Standalone bundled game (single 1.6 MB file, all assets inlined) |
-| `truck/index.html` | Same bundled file — same prototype canvas, mirrored URL |
+| `ipad/index.html` | Standalone fullscreen iPad game |
+| `truck/index.html` | Standalone fullscreen LED truck display (side + rear via `?panel=rear`) |
 | `assets/` | Original OREO × Marvel campaign assets (raw) |
-| `shared/firebase-config.js` | Stub for production sync (see `docs/firebase-setup.md`) |
-
-## Local dev
-
-Just open `ipad/index.html` in a browser. No build step.
-
-## Real two-device deployment
-
-The current build syncs iPad ↔ truck via `BroadcastChannel`, which only works on the **same browser**. For a real deployment (iPad in someone's hand, truck laptop on a different network), swap to Firebase — see `docs/firebase-setup.md`. ~30 lines of code.
+| `shared/firebase-config.js` | Stub for production sync |
