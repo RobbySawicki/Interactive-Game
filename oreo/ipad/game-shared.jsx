@@ -38,24 +38,68 @@ const pickSfx = (n) => (n >= 5 ? SFX_BIG : n >= 2 ? SFX_COMBO : SFX_HIT)[
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Sync bus — BroadcastChannel between same-origin tabs.
-// In production this becomes Firebase Realtime DB writes/reads.
+// Sync bus — Firebase Realtime DB if configured, BroadcastChannel otherwise.
+// Firebase enables cross-device play (iPad + truck on different machines).
+// BroadcastChannel keeps the local preview / single-machine demo working.
 // ─────────────────────────────────────────────────────────────────────────────
 const SYNC_CHANNEL = 'oreo-stuf-of-legends';
+const SESSION_ID = window.SYNC_SESSION_ID || 'oreo';
 
-class SyncBus {
+const FB_ENABLED = (() => {
+  const cfg = window.FIREBASE_CONFIG;
+  return typeof firebase !== 'undefined'
+    && cfg
+    && typeof cfg.databaseURL === 'string'
+    && !cfg.databaseURL.includes('YOUR_');
+})();
+
+let __fbDb = null;
+function getDb() {
+  if (__fbDb) return __fbDb;
+  if (!FB_ENABLED) return null;
+  if (!firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
+  __fbDb = firebase.database();
+  return __fbDb;
+}
+
+class FirebaseBus {
+  constructor() {
+    this.listeners = new Set();
+    const db = getDb();
+    this.eventsRef = db.ref(`sessions/${SESSION_ID}/events`);
+    // Only fire callbacks for events created after we attached, so reloads
+    // don't replay history.
+    const cutoff = Date.now() - 2000;
+    this.eventsRef.orderByChild('at').startAt(cutoff).on('child_added', (snap) => {
+      const msg = snap.val();
+      if (msg) this.listeners.forEach((fn) => fn(msg));
+    });
+    // Garbage-collect events older than a minute every 30s. Keeps the
+    // session/events node small without affecting active gameplay.
+    setInterval(() => {
+      this.eventsRef.orderByChild('at').endAt(Date.now() - 60000).limitToFirst(50)
+        .once('value', (snap) => snap.forEach((c) => c.ref.remove()));
+    }, 30000);
+  }
+  send(msg) {
+    const m = { ...msg, at: msg.at || Date.now() };
+    this.eventsRef.push(m);
+    // Local fan-out for immediate same-tab feedback (matches LocalBus).
+    this.listeners.forEach((fn) => fn(m));
+  }
+  on(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
+}
+
+class LocalBus {
   constructor() {
     this.listeners = new Set();
     try {
       this.bc = new BroadcastChannel(SYNC_CHANNEL);
       this.bc.onmessage = (e) => this.listeners.forEach((fn) => fn(e.data));
-    } catch (e) {
-      this.bc = null;
-    }
+    } catch (e) { this.bc = null; }
   }
   send(msg) {
     if (this.bc) this.bc.postMessage(msg);
-    // also fan out locally so a listener in same window gets it
     this.listeners.forEach((fn) => fn(msg));
   }
   on(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
@@ -63,7 +107,9 @@ class SyncBus {
 
 // Lazily-created single shared bus per page.
 let __bus = null;
-const getBus = () => (__bus = __bus || new SyncBus());
+const getBus = () => (__bus = __bus || (FB_ENABLED ? new FirebaseBus() : new LocalBus()));
+// Keep the original class name exported for any code that referenced it.
+const SyncBus = LocalBus;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Session leaderboard — stored in localStorage so it persists across reloads
@@ -74,6 +120,8 @@ const LB_KEY = 'oreo-stuf-of-legends:leaderboard';
 const LB_MAX = 50; // keep enough history; UI shows top N
 
 function readLeaderboard() {
+  // Synchronous read from local cache. When Firebase is enabled, the
+  // cache is kept fresh by an onValue subscription set up below.
   try {
     const raw = localStorage.getItem(LB_KEY);
     const arr = raw ? JSON.parse(raw) : [];
@@ -81,23 +129,60 @@ function readLeaderboard() {
     return arr.filter(r => r && typeof r.score === 'number' && typeof r.name === 'string');
   } catch (e) { return []; }
 }
-function writeLeaderboard(rows) {
+function writeLeaderboardLocal(rows) {
   try { localStorage.setItem(LB_KEY, JSON.stringify(rows.slice(0, LB_MAX))); } catch (e) {}
 }
 function recordScore(name, score) {
   const cleaned = (name || '').trim().toUpperCase().slice(0, 14) || 'PLAYER';
+  const entry = { name: cleaned, score: Math.max(0, score|0), at: Date.now() };
+
+  // Optimistic local update so the UI updates instantly on the recording device.
   const rows = readLeaderboard();
-  rows.push({ name: cleaned, score: Math.max(0, score|0), at: Date.now() });
+  rows.push(entry);
   rows.sort((a, b) => b.score - a.score);
   const trimmed = rows.slice(0, LB_MAX);
-  writeLeaderboard(trimmed);
-  // Notify any same-origin listeners (truck reading the live leaderboard).
+  writeLeaderboardLocal(trimmed);
   getBus().send({ type: 'leaderboard', rows: trimmed, at: Date.now() });
+
+  // Push to Firebase so other devices see the score. The /scores listener
+  // below rebuilds the canonical leaderboard from all scores and overwrites
+  // the local cache to keep everyone in sync.
+  if (FB_ENABLED) {
+    const db = getDb();
+    if (db) db.ref(`sessions/${SESSION_ID}/scores`).push(entry);
+  }
   return trimmed;
 }
 function clearLeaderboard() {
-  writeLeaderboard([]);
+  writeLeaderboardLocal([]);
   getBus().send({ type: 'leaderboard', rows: [], at: Date.now() });
+  if (FB_ENABLED) {
+    const db = getDb();
+    if (db) db.ref(`sessions/${SESSION_ID}/scores`).remove();
+  }
+}
+// Keep writeLeaderboard exported for any external callers; routes through
+// the Firebase-aware path so it stays consistent.
+const writeLeaderboard = writeLeaderboardLocal;
+
+// Subscribe to the canonical Firebase leaderboard. Rebuilds the sorted
+// top-N from all pushed scores and broadcasts to local listeners.
+if (FB_ENABLED) {
+  const db = getDb();
+  if (db) {
+    db.ref(`sessions/${SESSION_ID}/scores`).on('value', (snap) => {
+      const all = [];
+      snap.forEach((c) => {
+        const v = c.val();
+        if (v && typeof v.score === 'number' && typeof v.name === 'string') all.push(v);
+      });
+      all.sort((a, b) => b.score - a.score);
+      const trimmed = all.slice(0, LB_MAX);
+      writeLeaderboardLocal(trimmed);
+      // Fan out to the React leaderboard hook on every connected page.
+      if (__bus) __bus.listeners.forEach((fn) => fn({ type: 'leaderboard', rows: trimmed, at: Date.now() }));
+    });
+  }
 }
 
 // Hook: subscribe to the live leaderboard. Returns the current top-N rows
