@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Interactive Media</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0; min-height: 100vh; width: 100%;
+      font-family: Inter, system-ui, sans-serif;
+      background: radial-gradient(ellipse at center, #1a1f3a 0%, #0a0e1f 100%);
+      color: #fff;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .card {
+      width: min(420px, 90vw);
+      padding: 48px 36px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      backdrop-filter: blur(10px);
+      text-align: center;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+    p.sub {
+      margin: 0 0 32px;
+      color: rgba(255,255,255,0.55);
+      font-size: 14px;
+    }
+    form { display: flex; flex-direction: column; gap: 12px; }
+    input {
+      width: 100%;
+      padding: 14px 16px;
+      font-family: inherit;
+      font-size: 16px;
+      font-weight: 600;
+      background: rgba(0,0,0,0.3);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 10px;
+      color: #fff;
+      text-align: center;
+      letter-spacing: 0.05em;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input:focus { border-color: rgba(255,255,255,0.4); }
+    input::placeholder { color: rgba(255,255,255,0.3); letter-spacing: normal; font-weight: 400; }
+    button {
+      padding: 14px 16px;
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 700;
+      background: #fff;
+      color: #0a0e1f;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: transform 0.1s, opacity 0.15s;
+    }
+    button:hover { opacity: 0.9; }
+    button:active { transform: scale(0.98); }
+    .err {
+      margin-top: 12px;
+      color: #ff6b6b;
+      font-size: 13px;
+      min-height: 18px;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    .err.show { opacity: 1; }
+    .footer {
+      margin-top: 40px;
+      font-size: 11px;
+      color: rgba(255,255,255,0.3);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Interactive Media</h1>
+    <p class="sub">Enter your campaign code to continue.</p>
+    <form id="f" autocomplete="off">
+      <input id="code" type="text" placeholder="Campaign code" autofocus spellcheck="false" />
+      <button type="submit">Enter</button>
+      <div class="err" id="err">Invalid code</div>
+    </form>
+    <div class="footer">interactivemedia.ca</div>
+  </div>
+
+  <script>
+    // Map of campaign codes → folder paths.
+    // Add more campaigns by adding entries here.
+    const campaigns = {
+      "oreo": "/oreo/",
+    };
+
+    const form = document.getElementById('f');
+    const input = document.getElementById('code');
+    const err = document.getElementById('err');
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const code = input.value.trim().toLowerCase();
+      const path = campaigns[code];
+      if (path) {
+        window.location.href = path;
+      } else {
+        err.classList.add('show');
+        input.select();
+      }
+    });
+
+    input.addEventListener('input', () => err.classList.remove('show'));
+  </script>
+</body>
+</html>
