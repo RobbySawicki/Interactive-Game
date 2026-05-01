@@ -3,100 +3,95 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>OREO × Spider-Man — Sling The Stuf</title>
-  <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet" />
-  <style>
-    *, *::before, *::after { box-sizing: border-box; }
-    html, body {
-      margin: 0; padding: 0; min-height: 100vh; width: 100%;
-      font-family: Inter, system-ui, sans-serif;
-      background: #0A1A3F;
-      color: #fff;
-      display: flex; align-items: center; justify-content: center;
-    }
-    .wrap { width: min(720px, 92vw); padding: 40px 0; text-align: center; }
-    h1 {
-      font-family: Bangers, Impact, sans-serif;
-      font-size: clamp(40px, 7vw, 72px);
-      letter-spacing: 0.02em;
-      margin: 0 0 4px;
-      color: #FFD60A;
-      text-shadow: 4px 4px 0 #E60E2C;
-    }
-    p.sub {
-      margin: 0 0 36px;
-      color: rgba(255,255,255,0.7);
-      font-size: 14px;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-    }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 16px;
-    }
-    a.card {
-      display: block;
-      padding: 28px 20px;
-      background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 14px;
-      color: #fff;
-      text-decoration: none;
-      transition: transform 0.15s, background 0.15s, border-color 0.15s;
-    }
-    a.card:hover {
-      background: rgba(255,255,255,0.1);
-      border-color: rgba(255,214,10,0.5);
-      transform: translateY(-2px);
-    }
-    .label {
-      font-family: Bangers, Impact, sans-serif;
-      font-size: 26px;
-      letter-spacing: 0.04em;
-      color: #FFD60A;
-      margin-bottom: 6px;
-    }
-    .desc {
-      font-size: 13px;
-      color: rgba(255,255,255,0.65);
-      line-height: 1.5;
-    }
-    .back {
-      display: inline-block;
-      margin-top: 32px;
-      color: rgba(255,255,255,0.5);
-      font-size: 12px;
-      text-decoration: none;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-    }
-    .back:hover { color: #fff; }
-  </style>
+  <title>OREO × Spider-Man — Sling The Stuf · Interactive Media</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../assets/skin.css" />
 </head>
-<body>
-  <div class="wrap">
-    <h1>Sling The Stuf</h1>
-    <p class="sub">OREO × Spider-Man Activation</p>
-    <div class="grid">
-      <a class="card" href="preview-side-by-side.html">
-        <div class="label">Preview</div>
-        <div class="desc">iPad + truck side-by-side in one view</div>
-      </a>
-      <a class="card" href="ipad/">
-        <div class="label">iPad</div>
-        <div class="desc">Player slingshot game</div>
-      </a>
-      <a class="card" href="truck/">
-        <div class="label">Truck</div>
-        <div class="desc">LED side panel — score &amp; hype</div>
-      </a>
-      <a class="card" href="truck/?panel=rear">
-        <div class="label">Truck Rear</div>
-        <div class="desc">Square QR + comic burst panel</div>
-      </a>
+<body data-campaign="OREO" data-campaign-tag="CAMPAIGN">
+  <main class="shell">
+    <div class="stack">
+      <div>
+        <div class="eyebrow">Campaign · Live</div>
+        <h1 class="display">Sling the <em>Stuf</em>.</h1>
+      </div>
+
+      <p class="lede">A two-screen activation. The player slings cookies on an iPad. The truck-side LED panel hypes the crowd in real time. Pick a surface to enter.</p>
+
+      <div class="hub-grid">
+        <a class="hub-card" href="preview-side-by-side.html">
+          <div class="idx">
+            <span>01 · PREVIEW</span>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+              <path d="M5 11L11 5M6 5h5v5" stroke-linecap="square"/>
+            </svg>
+          </div>
+          <div class="name">Side-by-side</div>
+          <div class="desc">iPad and truck mocked together — see both screens sync live.</div>
+          <span class="tag">Combined</span>
+        </a>
+
+        <a class="hub-card" href="ipad/">
+          <div class="idx">
+            <span>02 · PLAYER</span>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+              <path d="M5 11L11 5M6 5h5v5" stroke-linecap="square"/>
+            </svg>
+          </div>
+          <div class="name">iPad game</div>
+          <div class="desc">Drag-and-fling slingshot. 30-second sprint. Name entry. Leaderboard.</div>
+          <span class="tag">4 : 3 · Touch</span>
+        </a>
+
+        <a class="hub-card" href="truck/">
+          <div class="idx">
+            <span>03 · CROWD</span>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+              <path d="M5 11L11 5M6 5h5v5" stroke-linecap="square"/>
+            </svg>
+          </div>
+          <div class="name">Truck side LED</div>
+          <div class="desc">Live score, combo meter, reaction word, leaderboard rail.</div>
+          <span class="tag">1007 × 432</span>
+        </a>
+
+        <a class="hub-card" href="truck/?panel=rear">
+          <div class="idx">
+            <span>04 · CAPTURE</span>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+              <path d="M5 11L11 5M6 5h5v5" stroke-linecap="square"/>
+            </svg>
+          </div>
+          <div class="name">Truck rear panel</div>
+          <div class="desc">Square QR drop with comic-burst pulse on every hit.</div>
+          <span class="tag">1 : 1 · QR</span>
+        </a>
+      </div>
+
+      <div class="rail">
+        <div class="left">CAMPAIGN · OREO</div>
+        <div class="center"><span class="dot"></span> 4 surfaces · synced</div>
+        <div class="right"><a class="back-link" href="/">Back to access</a></div>
+      </div>
+
+      <div class="rail" style="margin-top:-8px;border-top:0;padding-top:0;">
+        <div class="ticker" style="grid-column: 1 / -1;">
+          <div class="ticker-track">
+            <span>30-second sprint</span>
+            <span>Drag-and-fling slingshot</span>
+            <span>Combo streaks unlock POW! bursts</span>
+            <span>Live truck reactions on every throw</span>
+            <span>Session leaderboard · top 50</span>
+            <span>Tweaks panel for on-site dialing</span>
+            <span>BroadcastChannel sync · same browser</span>
+            <span>Firebase-ready · cross-device</span>
+          </div>
+        </div>
+      </div>
     </div>
-    <a class="back" href="/">← Back</a>
-  </div>
+  </main>
+
+  <script src="../assets/campaign-shell.js"></script>
 </body>
 </html>
