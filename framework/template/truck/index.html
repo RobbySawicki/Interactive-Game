@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Campaign — Truck</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet" />
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: #000; font-family: Inter, system-ui, sans-serif; }
+    * { box-sizing: border-box; }
+    #root { width: 100vw; height: 100vh; }
+  </style>
+
+  <script>window.CAMPAIGN_ASSET_BASE = '../assets/';</script>
+  <script src="../campaign.config.js"></script>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin></script>
+
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+  <script src="../firebase-config.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel" src="../shared.jsx"></script>
+  <script type="text/babel" src="hud.jsx"></script>
+
+  <script type="text/babel">
+    // ?panel=rear → square rear panel; default → wide side panel.
+    const isRear = new URLSearchParams(location.search).get('panel') === 'rear';
+    ReactDOM.createRoot(document.getElementById('root')).render(
+      isRear ? <TruckRear /> : <TruckSide />
+    );
+  </script>
+</body>
+</html>
