@@ -126,9 +126,24 @@ function SideInner() {
         opacity: 0.08, mixBlendMode: 'screen', pointerEvents: 'none',
       }} />
 
-      {phase === 'attract' && <SideAttract />}
-      {phase === 'live'    && <SideLive score={score} combo={combo} pop={pop} reaction={reaction} player={player} />}
-      {phase === 'end'     && <SideEnd  score={score} player={player} />}
+      {/* Phase content — constrained to left 75% so the persistent leaderboard
+          on the right 25% is always visible (attract / live / end). */}
+      <div style={{
+        position: 'absolute', left: 0, top: 0, width: '75%', height: '100%',
+        zIndex: 10,
+      }}>
+        {phase === 'attract' && <SideAttract />}
+        {phase === 'live'    && <SideLive score={score} combo={combo} pop={pop} reaction={reaction} player={player} />}
+        {phase === 'end'     && <SideEnd  score={score} player={player} />}
+      </div>
+
+      {/* Persistent leaderboard — always visible on the right 25%. Highlights
+          the active player's live score during the 'live' phase. */}
+      <SideLeaderboard
+        liveScore={score}
+        livePlayer={player}
+        isLive={phase === 'live'}
+      />
 
       {/* Splats — only render on the left 75% so they don't overlap the leaderboard */}
       {phase === 'live' && (
@@ -189,34 +204,13 @@ function SideAttract() {
   );
 }
 
-// SIDE — Live: 75% score + reaction word, 25% leaderboard
+// SIDE — Live: score + reaction word. Leaderboard is rendered persistently
+// by the parent (SideInner) so it's visible across attract / live / end.
 function SideLive({ score, combo, pop, reaction, player }) {
-  // Persistent session leaderboard (localStorage). Live player is slotted in
-  // as a "live" row above their previous best so spectators see them climb
-  // in real time, then their final score is recorded on 'end'.
-  const stored = useLeaderboard(20);
-  const leaderboard = React.useMemo(() => {
-    const liveName = (player || 'YOU').toUpperCase();
-    const rows = [...stored, { name: liveName, score, live: true }];
-    rows.sort((a, b) => b.score - a.score);
-    // de-dupe: keep one live row + best previous per name
-    const seen = new Set();
-    const out = [];
-    for (const r of rows) {
-      const key = r.name + (r.live ? ':live' : '');
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push(r);
-      if (out.length >= 5) break;
-    }
-    return out;
-  }, [stored, score, player]);
-
   return (
-    <div style={{ position: 'absolute', inset: 0, zIndex: 10, display: 'flex' }}>
-      {/* ── LEFT 75%: score + multiplier + reaction ───────────────────── */}
+    <div style={{ position: 'absolute', inset: 0 }}>
       <div style={{
-        flex: '0 0 75%', height: '100%', position: 'relative',
+        position: 'absolute', inset: 0,
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
         padding: '20px 24px',
       }}>
@@ -290,65 +284,19 @@ function SideLive({ score, combo, pop, reaction, player }) {
           }
         `}</style>
       </div>
-
-      {/* ── RIGHT 25%: leaderboard ─────────────────────────────────── */}
-      <div style={{
-        flex: '0 0 25%', height: '100%',
-        background: 'rgba(10,10,10,0.55)', borderLeft: '4px solid #0a0a0a',
-        display: 'flex', flexDirection: 'column', padding: '18px 16px', gap: 8,
-        backdropFilter: 'blur(2px)',
-      }}>
-        <div style={{
-          fontFamily: BRAND.display, fontSize: 32, color: BRAND.yellow,
-          WebkitTextStroke: '2px #0a0a0a', textShadow: '3px 3px 0 #0a0a0a',
-          letterSpacing: '0.04em', textAlign: 'center', lineHeight: 1,
-        }}>
-          LEADERBOARD
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
-          {leaderboard.map((row, i) => (
-            <div key={row.name + i} style={{
-              display: 'grid', gridTemplateColumns: '32px 1fr auto', alignItems: 'center', gap: 8,
-              padding: '8px 10px',
-              background: row.live ? BRAND.yellow : 'rgba(255,255,255,0.08)',
-              border: '2px solid #0a0a0a', borderRadius: 8,
-              boxShadow: row.live ? '3px 3px 0 #0a0a0a' : 'none',
-              color: row.live ? '#0a0a0a' : '#fff',
-              fontFamily: BRAND.ui, fontWeight: 900,
-            }}>
-              <div style={{
-                fontFamily: BRAND.display, fontSize: 30, lineHeight: 1,
-                color: row.live ? BRAND.marvelRed : (i === 0 ? BRAND.yellow : '#fff'),
-                WebkitTextStroke: row.live ? '0' : '1.5px #0a0a0a',
-                textAlign: 'center',
-              }}>{i + 1}</div>
-              <div style={{
-                fontSize: 26, letterSpacing: '0.08em', lineHeight: 1,
-                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-              }}>{row.name}</div>
-              <div style={{
-                fontFamily: BRAND.display, fontSize: 26, lineHeight: 1,
-                color: row.live ? BRAND.marvelRed : '#fff',
-                WebkitTextStroke: row.live ? '0' : '1.5px #0a0a0a',
-              }}>{row.score.toLocaleString()}</div>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }
 
-// SIDE — End: final score banner
+// SIDE — End: final score banner. Session leaderboard is rendered persistently
+// by the parent (SideInner) on the right rail.
 function SideEnd({ score, player }) {
-  const top = useLeaderboard(3);
   return (
     <div style={{
       position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-      zIndex: 10, padding: 16, overflow: 'hidden', textAlign: 'center', flexDirection: 'row', gap: 24,
+      zIndex: 10, padding: 16, overflow: 'hidden', textAlign: 'center', flexDirection: 'column', gap: 8,
     }}>
-      {/* Left: final score for the just-finished player */}
-      <div style={{ flex: '1 1 60%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <div style={{
           fontFamily: BRAND.display, fontSize: 48, color: BRAND.yellow,
           WebkitTextStroke: '3px #0a0a0a', textShadow: '4px 4px 0 #0a0a0a', lineHeight: 1,
@@ -371,41 +319,82 @@ function SideEnd({ score, player }) {
           SCAN THE BACK TO SAVE THE UNIVERSE!
         </div>
       </div>
+    </div>
+  );
+}
 
-      {/* Right: session top 3 */}
+// SIDE — Persistent leaderboard rail. Always visible on the right 25% of the
+// side panel across all phases (attract / live / end). When isLive is true,
+// the active player is slotted in as a highlighted "live" row that updates
+// in real time so spectators can see them climb.
+function SideLeaderboard({ liveScore = 0, livePlayer = '', isLive = false }) {
+  const stored = useLeaderboard(20);
+  const leaderboard = React.useMemo(() => {
+    const liveName = (livePlayer || 'YOU').toUpperCase();
+    const rows = isLive
+      ? [...stored, { name: liveName, score: liveScore, live: true }]
+      : [...stored];
+    rows.sort((a, b) => b.score - a.score);
+    const seen = new Set();
+    const out = [];
+    for (const r of rows) {
+      const key = r.name + (r.live ? ':live' : '');
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(r);
+      if (out.length >= 5) break;
+    }
+    return out;
+  }, [stored, liveScore, livePlayer, isLive]);
+
+  return (
+    <div style={{
+      position: 'absolute', right: 0, top: 0, width: '25%', height: '100%',
+      background: 'rgba(10,10,10,0.55)', borderLeft: '4px solid #0a0a0a',
+      display: 'flex', flexDirection: 'column', padding: '18px 16px', gap: 8,
+      backdropFilter: 'blur(2px)', zIndex: 20,
+    }}>
       <div style={{
-        flex: '0 0 36%', alignSelf: 'stretch',
-        display: 'flex', flexDirection: 'column', justifyContent: 'center',
-        background: 'rgba(0,0,0,0.35)', border: '4px solid #0a0a0a', borderRadius: 10,
-        padding: '14px 14px',
+        fontFamily: BRAND.display, fontSize: 32, color: BRAND.yellow,
+        WebkitTextStroke: '2px #0a0a0a', textShadow: '3px 3px 0 #0a0a0a',
+        letterSpacing: '0.04em', textAlign: 'center', lineHeight: 1,
       }}>
-        <div style={{
-          fontFamily: BRAND.display, fontSize: 30, color: BRAND.yellow,
-          WebkitTextStroke: '2px #0a0a0a', textShadow: '3px 3px 0 #0a0a0a',
-          textAlign: 'center', letterSpacing: '0.06em', lineHeight: 1, marginBottom: 8,
-        }}>SESSION TOP 3</div>
-        {top.length === 0 && (
+        LEADERBOARD
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
+        {leaderboard.length === 0 && (
           <div style={{
-            fontFamily: BRAND.ui, fontSize: 16, color: '#fff', opacity: 0.7, textAlign: 'center',
+            fontFamily: BRAND.ui, fontSize: 18, fontWeight: 900, color: '#fff',
+            opacity: 0.75, textAlign: 'center', marginTop: 24, letterSpacing: '0.08em',
           }}>BE THE FIRST!</div>
         )}
-        {top.map((row, i) => {
-          const isMe = player && row.name === (player || '').toUpperCase() && row.score === score;
-          return (
-            <div key={i} style={{
-              display: 'grid', gridTemplateColumns: '40px 1fr auto', alignItems: 'center', gap: 8,
-              padding: '6px 8px', marginBottom: 4,
-              background: isMe ? BRAND.yellow : 'rgba(255,255,255,0.06)',
-              border: '2px solid #0a0a0a', borderRadius: 6,
-              color: isMe ? '#0a0a0a' : '#fff',
+        {leaderboard.map((row, i) => (
+          <div key={row.name + i + (row.live ? ':L' : '')} style={{
+            display: 'grid', gridTemplateColumns: '32px 1fr auto', alignItems: 'center', gap: 8,
+            padding: '8px 10px',
+            background: row.live ? BRAND.yellow : 'rgba(255,255,255,0.08)',
+            border: '2px solid #0a0a0a', borderRadius: 8,
+            boxShadow: row.live ? '3px 3px 0 #0a0a0a' : 'none',
+            color: row.live ? '#0a0a0a' : '#fff',
+            fontFamily: BRAND.ui, fontWeight: 900,
+          }}>
+            <div style={{
+              fontFamily: BRAND.display, fontSize: 30, lineHeight: 1,
+              color: row.live ? BRAND.marvelRed : (i === 0 ? BRAND.yellow : '#fff'),
+              WebkitTextStroke: row.live ? '0' : '1.5px #0a0a0a',
+              textAlign: 'center',
+            }}>{i + 1}</div>
+            <div style={{
+              fontSize: 26, letterSpacing: '0.08em', lineHeight: 1,
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            }}>{row.name}</div>
+            <div style={{
               fontFamily: BRAND.display, fontSize: 26, lineHeight: 1,
-            }}>
-              <div style={{ textAlign: 'center' }}>{i + 1}</div>
-              <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.name}</div>
-              <div>{row.score.toLocaleString()}</div>
-            </div>
-          );
-        })}
+              color: row.live ? BRAND.marvelRed : '#fff',
+              WebkitTextStroke: row.live ? '0' : '1.5px #0a0a0a',
+            }}>{row.score.toLocaleString()}</div>
+          </div>
+        ))}
       </div>
     </div>
   );
