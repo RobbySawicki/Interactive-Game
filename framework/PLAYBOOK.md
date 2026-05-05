@@ -4,6 +4,14 @@ Target: a working iPad × truck campaign deployed in **under a day** from a crea
 
 ---
 
+## 0. Brief the client (before any code)
+
+Send the client (or have your AE / creative lead fill out with them) **`framework/INTAKE-SHEET.md`**. It's a non-technical, fill-in-the-blanks worksheet covering tone, brand, copy, the mechanic, the truck visuals, and practical needs.
+
+Once it's complete, translate it into the more technical **`framework/CREATIVE-BRIEF.md`**. Claude Code can do this transformation for you — paste both files in and ask it to fill the brief from the intake.
+
+---
+
 ## 1. Copy the template
 
 From the repo root:

@@ -8,7 +8,8 @@ A starting point for any **iPad × LED truck / projection** activation that foll
 framework/
   README.md               ← you are here
   PLAYBOOK.md             ← step-by-step: how to spin up a new campaign
-  CREATIVE-BRIEF.md       ← fillable brief — paste into Claude Code to scaffold a campaign
+  INTAKE-SHEET.md         ← human-facing brief — give to client / AE to fill out
+  CREATIVE-BRIEF.md       ← technical brief — paste into Claude Code to scaffold a campaign
   template/               ← the campaign skeleton you copy to start
     README.md
     campaign.config.js    ← brand, copy, assets, surface dimensions
@@ -33,9 +34,10 @@ framework/
 
 For step 4, the recommended flow is:
 
-> 1. Fill in `framework/CREATIVE-BRIEF.md` with the client's direction.
-> 2. Paste the filled brief into Claude Code with: *"Scaffold a new campaign at `<client-code>/` based on `framework/template/` and this brief."*
-> 3. Smoke test the result, iterate on the mechanic.
+> 1. Send `framework/INTAKE-SHEET.md` to the client (or have your AE / creative lead fill it out together with them).
+> 2. Translate the answers into `framework/CREATIVE-BRIEF.md` — usually a quick reformatting; Claude Code can do this for you too.
+> 3. Paste the filled brief into Claude Code with: *"Scaffold a new campaign at `<client-code>/` based on `framework/template/` and this brief."*
+> 4. Smoke test the result, iterate on the mechanic.
 
 See [PLAYBOOK.md](./PLAYBOOK.md) for the detailed walkthrough.
 
