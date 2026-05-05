@@ -12,13 +12,13 @@
 // While placeholders are in place, the game falls back to same-browser
 // sync (BroadcastChannel + localStorage) so the local preview still works.
 window.FIREBASE_CONFIG = {
-  apiKey:            "YOUR_API_KEY",
-  authDomain:        "YOUR_PROJECT.firebaseapp.com",
-  databaseURL:       "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
-  projectId:         "YOUR_PROJECT",
-  storageBucket:     "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId:             "YOUR_APP_ID",
+  apiKey:            "AIzaSyAYWQ0noryS6o3QK13StwMFvKdvKrOm4Ws",
+  authDomain:        "interactive-game-d2e2d.firebaseapp.com",
+  databaseURL:       "https://interactive-game-d2e2d-default-rtdb.firebaseio.com",
+  projectId:         "interactive-game-d2e2d",
+  storageBucket:     "interactive-game-d2e2d.firebasestorage.app",
+  messagingSenderId: "977788577447",
+  appId:             "1:977788577447:web:3f4729f287a5a519dedd82",
 };
 
 // Session ID — isolates this campaign's data from any other campaigns
