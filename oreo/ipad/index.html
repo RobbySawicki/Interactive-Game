@@ -99,6 +99,16 @@
             <TweakSection label="UI">
               <TweakToggle label="Show drag hint" value={t.showHints} onChange={v => setTweak('showHints', v)} />
             </TweakSection>
+            <TweakSection label="Leaderboard">
+              <TweakButton
+                label="Reset leaderboard"
+                onClick={() => {
+                  if (window.confirm('Wipe all scores from the leaderboard? This affects every connected device.')) {
+                    clearLeaderboard();
+                  }
+                }}
+              />
+            </TweakSection>
           </TweaksPanel>
         </div>
       );
