@@ -38,7 +38,8 @@ For real activation use — iPad in a player's hand on one device, truck laptop 
 
 - Persists in `localStorage` under key `oreo-stuf-of-legends:leaderboard`.
 - Top 50 scores kept; UI shows top 3 (truck) / top 5 (iPad end screen) / top 5 (truck live rail).
-- To wipe the board: open the site, devtools console, run `clearLeaderboard()`.
+- **Resets automatically every day at 1:00 AM local time.** Scores from before the most recent 1 AM cutoff are filtered out on read and pruned from Firebase. Change the hour by editing `RESET_HOUR` in `game-shared.jsx` (both `ipad/` and `truck/` copies).
+- To wipe the board manually: open the site, devtools console, run `clearLeaderboard()`.
 - To wipe by hand: clear site data for the page in browser settings.
 
 ## Game tweaks

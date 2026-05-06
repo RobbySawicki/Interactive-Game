@@ -119,14 +119,34 @@ const SyncBus = LocalBus;
 const LB_KEY = 'oreo-stuf-of-legends:leaderboard';
 const LB_MAX = 50; // keep enough history; UI shows top N
 
+// Daily reset: leaderboard wipes at this local-time hour every day.
+const RESET_HOUR = 1; // 1 AM local time
+function currentEpochStart(now = Date.now()) {
+  const d = new Date(now);
+  const start = new Date(d.getFullYear(), d.getMonth(), d.getDate(), RESET_HOUR, 0, 0, 0);
+  if (start.getTime() > now) start.setDate(start.getDate() - 1);
+  return start.getTime();
+}
+function nextEpochStart(now = Date.now()) {
+  const next = new Date(currentEpochStart(now));
+  next.setDate(next.getDate() + 1);
+  return next.getTime();
+}
+function isCurrentEpoch(entry, cutoff = currentEpochStart()) {
+  return entry && typeof entry.at === 'number' && entry.at >= cutoff;
+}
+
 function readLeaderboard() {
   // Synchronous read from local cache. When Firebase is enabled, the
   // cache is kept fresh by an onValue subscription set up below.
+  // Entries from before the most recent RESET_HOUR are dropped so the
+  // board resets daily without needing an explicit clear.
   try {
     const raw = localStorage.getItem(LB_KEY);
     const arr = raw ? JSON.parse(raw) : [];
     if (!Array.isArray(arr)) return [];
-    return arr.filter(r => r && typeof r.score === 'number' && typeof r.name === 'string');
+    const cutoff = currentEpochStart();
+    return arr.filter(r => r && typeof r.score === 'number' && typeof r.name === 'string' && isCurrentEpoch(r, cutoff));
   } catch (e) { return []; }
 }
 function writeLeaderboardLocal(rows) {
@@ -171,10 +191,17 @@ if (FB_ENABLED) {
   const db = getDb();
   if (db) {
     db.ref(`sessions/${SESSION_ID}/scores`).on('value', (snap) => {
+      const cutoff = currentEpochStart();
       const all = [];
       snap.forEach((c) => {
         const v = c.val();
-        if (v && typeof v.score === 'number' && typeof v.name === 'string') all.push(v);
+        if (!v || typeof v.score !== 'number' || typeof v.name !== 'string') return;
+        if (isCurrentEpoch(v, cutoff)) {
+          all.push(v);
+        } else {
+          // Prune entries from previous days so the node doesn't grow unbounded.
+          c.ref.remove();
+        }
       });
       all.sort((a, b) => b.score - a.score);
       const trimmed = all.slice(0, LB_MAX);
@@ -184,6 +211,27 @@ if (FB_ENABLED) {
     });
   }
 }
+
+// Daily rollover: at the next RESET_HOUR boundary, drop yesterday's scores
+// from the local cache and the canonical Firebase node, and notify any
+// connected pages so their UIs clear without a manual refresh.
+function scheduleEpochRollover() {
+  const delay = Math.max(1000, nextEpochStart() - Date.now() + 1000);
+  setTimeout(() => {
+    const fresh = readLeaderboard(); // already filtered by cutoff
+    writeLeaderboardLocal(fresh);
+    if (__bus) __bus.listeners.forEach((fn) => fn({ type: 'leaderboard', rows: fresh, at: Date.now() }));
+    if (FB_ENABLED) {
+      const db = getDb();
+      if (db) {
+        db.ref(`sessions/${SESSION_ID}/scores`).orderByChild('at').endAt(currentEpochStart() - 1)
+          .once('value', (snap) => snap.forEach((c) => c.ref.remove()));
+      }
+    }
+    scheduleEpochRollover();
+  }, delay);
+}
+scheduleEpochRollover();
 
 // Hook: subscribe to the live leaderboard. Returns the current top-N rows
 // and re-renders whenever a new score is recorded (locally or via bus).
