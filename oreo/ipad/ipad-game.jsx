@@ -70,147 +70,236 @@ function IpadInner({ tweaks = {}, scaleHints = {}, autoplay = false }) {
   const [score, setScore]       = React.useState(0);
   const [combo, setCombo]       = React.useState(0);
   const [time, setTime]         = React.useState(ROUND_SECONDS);
-  const [targets, setTargets]   = React.useState([]);
-  const [projectile, setProjectile] = React.useState(null); // {x,y,vx,vy}
-  const [aim, setAim]           = React.useState(null);     // {x,y} fingertip
   const [sfx, setSfx]           = React.useState([]);
-  const [parts, burst]          = useParticles();
+  const [aim, setAim]           = React.useState(null);     // {x,y} fingertip
+  const [flying, setFlying]     = React.useState(false);    // projectile in flight (hides loaded cookie)
+
+  // ── Imperative play layer ────────────────────────────────────────
+  // Targets, projectile, and particles are managed as plain DOM nodes
+  // appended into `fieldRef`. The animation loop mutates positions via
+  // `el.style.transform` directly so we avoid React reconciliation on
+  // every frame — this is the difference between buttery and chuggy on
+  // older iPads.
+  const fieldRef       = React.useRef(null);
+  const targetsRef     = React.useRef(new Map()); // id -> target object (incl. .el)
+  const projectileRef  = React.useRef(null);      // {x,y,vx,vy,rot,el} | null
+  const particlesRef   = React.useRef([]);
+  const scoreRef       = React.useRef(0);
+  const comboRef       = React.useRef(0);
+  const phaseRef       = React.useRef(phase);
+  React.useEffect(() => { phaseRef.current = phase; }, [phase]);
 
   const bus = getBus();
 
   // Anchor for slingshot at bottom-center
   const anchor = { x: stageSize.w / 2, y: stageSize.h - 140 };
+  const anchorRef = React.useRef(anchor);
+  anchorRef.current = anchor;
+  const stageSizeRef = React.useRef(stageSize);
+  stageSizeRef.current = stageSize;
 
   // ── target spawner ────────────────────────────────────────────────
   React.useEffect(() => {
     if (phase !== 'playing') return;
-    let id = 0;
+    let nextId = 0;
     const seed = () => {
+      const field = fieldRef.current; if (!field) return;
+      const { w, h } = stageSizeRef.current;
       const archetype = pickTargetKind();
       const fromLeft = Math.random() > 0.5;
-      const y = 100 + Math.random() * (stageSize.h * 0.5);
+      const y = 100 + Math.random() * (h * 0.5);
       const speed = (1.5 + Math.random() * 1.5) * archetype.speedMul * speedMul;
+      const id = ++nextId + Math.random();
+      const el = document.createElement('img');
+      el.src = archetype.img;
+      el.alt = '';
+      el.draggable = false;
+      el.style.cssText = `position:absolute;left:0;top:0;width:${archetype.size}px;height:${archetype.size}px;pointer-events:none;will-change:transform;${archetype.bonus ? 'filter:drop-shadow(0 0 24px #FFD60A);' : ''}`;
       const t = {
-        id: ++id + Math.random(),
-        archetype,
-        x: fromLeft ? -archetype.size : stageSize.w + archetype.size,
+        id, archetype, el,
+        x: fromLeft ? -archetype.size : w + archetype.size,
         y,
         vx: fromLeft ? speed : -speed,
-        vy: 0,
         bobPhase: Math.random() * Math.PI * 2,
         bobAmp: 6 + Math.random() * 12,
         rot: 0,
         vrot: (Math.random() - 0.5) * 1.2,
-        alive: true,
       };
-      setTargets((ts) => [...ts, t]);
+      field.appendChild(el);
+      targetsRef.current.set(id, t);
     };
-    // initial pop-in
     seed(); seed();
     const iv = setInterval(seed, 1100);
     return () => clearInterval(iv);
-  }, [phase, stageSize.h, stageSize.w, speedMul]);
+  }, [phase, speedMul]);
 
-  // ── animation loop ────────────────────────────────────────────────
+  // ── animation loop (single rAF for targets, projectile, particles, collisions)
   React.useEffect(() => {
-    let raf, last = performance.now();
+    let raf;
     const tick = (now) => {
-      const dt = Math.min(0.05, (now - last) / 1000); last = now;
-      setTargets((ts) =>
-        ts
-          .map((t) => {
-            const nx = t.x + t.vx;
-            const ny = t.y + Math.sin((now / 600) + t.bobPhase) * 0.8;
-            return { ...t, x: nx, y: ny, rot: t.rot + t.vrot };
-          })
-          .filter((t) => t.alive && t.x > -t.archetype.size - 50 && t.x < stageSize.w + t.archetype.size + 50)
-      );
+      const { w, h } = stageSizeRef.current;
+      // targets
+      for (const t of targetsRef.current.values()) {
+        t.x += t.vx;
+        t.rot += t.vrot;
+        const dy = Math.sin((now / 600) + t.bobPhase) * t.bobAmp * 0.15;
+        const drawX = t.x - t.archetype.size / 2;
+        const drawY = (t.y + dy) - t.archetype.size / 2;
+        t.el.style.transform = `translate3d(${drawX}px, ${drawY}px, 0) rotate(${t.rot}deg)`;
+        if (t.x < -t.archetype.size - 50 || t.x > w + t.archetype.size + 50) {
+          t.el.remove();
+          targetsRef.current.delete(t.id);
+        }
+      }
+
       // projectile
-      setProjectile((p) => {
-        if (!p) return p;
-        const np = {
-          ...p,
-          x: p.x + p.vx,
-          y: p.y + p.vy,
-          vy: p.vy + 0.7 * gravityMul,
-          rot: (p.rot || 0) + 18,
-        };
-        if (np.y > stageSize.h + 100 || np.x < -100 || np.x > stageSize.w + 100) {
-          // miss
-          if (phase === 'playing') {
+      const p = projectileRef.current;
+      if (p) {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.7 * gravityMul;
+        p.rot += 18;
+        p.el.style.transform = `translate3d(${p.x - 60}px, ${p.y - 60}px, 0) rotate(${p.rot}deg)`;
+        if (p.y > h + 100 || p.x < -100 || p.x > w + 100) {
+          p.el.remove();
+          projectileRef.current = null;
+          setFlying(false);
+          if (phaseRef.current === 'playing') {
             bus.send({ type: 'miss', at: Date.now() });
+            comboRef.current = 0;
             setCombo(0);
           }
-          return null;
+        } else {
+          // collision check
+          for (const t of targetsRef.current.values()) {
+            const dx = t.x - p.x;
+            const dy = t.y - p.y;
+            const r = (t.archetype.size / 2) * 0.85 + 36;
+            if (dx * dx + dy * dy < r * r) {
+              const newCombo = comboRef.current + 1;
+              const points = Math.round(t.archetype.points * (1 + (newCombo - 1) * 0.25));
+              const newScore = scoreRef.current + points;
+              comboRef.current = newCombo;
+              scoreRef.current = newScore;
+              setCombo(newCombo);
+              setScore(newScore);
+              t.el.remove();
+              targetsRef.current.delete(t.id);
+              const label = pickSfx(newCombo);
+              const sfxId = Math.random();
+              setSfx((s) => [...s, {
+                id: sfxId, text: label, x: t.x, y: t.y,
+                color: t.archetype.bonus ? '#FFD60A' : (newCombo >= 3 ? '#FFD60A' : '#fff'),
+                size: 56 + Math.min(newCombo, 6) * 6,
+                rot: (Math.random() - 0.5) * 12,
+              }]);
+              setTimeout(() => setSfx((s) => s.filter((x) => x.id !== sfxId)), 900);
+              spawnBurst(t.x, t.y, 22, '#fff', 14, 12);
+              spawnBurst(t.x, t.y, 10, BRAND.blue, 18, 14);
+              p.el.remove();
+              projectileRef.current = null;
+              setFlying(false);
+              bus.send({
+                type: 'hit',
+                points,
+                totalScore: newScore,
+                combo: newCombo,
+                targetKind: t.archetype.kind,
+                x: t.x / w,
+                y: t.y / h,
+                sfx: label,
+                at: Date.now(),
+              });
+              break;
+            }
+          }
         }
-        return np;
-      });
+      }
+
+      // particles
+      const parts = particlesRef.current;
+      for (let i = parts.length - 1; i >= 0; i--) {
+        const q = parts[i];
+        q.x += q.vx;
+        q.y += q.vy;
+        q.vy += 0.6;
+        q.vx *= 0.99;
+        q.rot += q.vrot;
+        q.life -= 0.02;
+        if (q.life <= 0) {
+          q.el.remove();
+          parts.splice(i, 1);
+        } else {
+          q.el.style.opacity = q.life;
+          q.el.style.transform = `translate3d(${q.x - q.size / 2}px, ${q.y - q.size / 2}px, 0) rotate(${q.rot}deg)`;
+        }
+      }
+
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [stageSize.w, stageSize.h, gravityMul, phase]);
+  }, [gravityMul, bus]);
 
-  // ── collision ─────────────────────────────────────────────────────
+  // Reset play layer when leaving 'playing'
   React.useEffect(() => {
-    if (!projectile) return;
-    for (const t of targets) {
-      const dx = t.x - projectile.x;
-      const dy = t.y - projectile.y;
-      const r = (t.archetype.size / 2) * 0.85 + 36;
-      if (dx * dx + dy * dy < r * r) {
-        // HIT
-        const newCombo = combo + 1;
-        const points = Math.round(t.archetype.points * (1 + (newCombo - 1) * 0.25));
-        const newScore = score + points;
-        setScore(newScore);
-        setCombo(newCombo);
-        setTargets((ts) => ts.filter((x) => x.id !== t.id));
-        const label = pickSfx(newCombo);
-        const sfxId = Math.random();
-        setSfx((s) => [...s, {
-          id: sfxId, text: label, x: t.x, y: t.y,
-          color: t.archetype.bonus ? '#FFD60A' : (newCombo >= 3 ? '#FFD60A' : '#fff'),
-          size: 56 + Math.min(newCombo, 6) * 6,
-          rot: (Math.random() - 0.5) * 12,
-        }]);
-        setTimeout(() => setSfx((s) => s.filter((x) => x.id !== sfxId)), 900);
-        burst(t.x, t.y, { count: 22, color: '#fff', spread: 14, upward: 12 });
-        burst(t.x, t.y, { count: 10, color: BRAND.blue, spread: 18, upward: 14 });
-        setProjectile(null);
-        bus.send({
-          type: 'hit',
-          points,
-          totalScore: newScore,
-          combo: newCombo,
-          targetKind: t.archetype.kind,
-          x: t.x / stageSize.w,
-          y: t.y / stageSize.h,
-          sfx: label,
-          at: Date.now(),
-        });
-        return;
-      }
+    if (phase === 'playing') return;
+    for (const t of targetsRef.current.values()) t.el.remove();
+    targetsRef.current.clear();
+    if (projectileRef.current) { projectileRef.current.el.remove(); projectileRef.current = null; }
+    for (const q of particlesRef.current) q.el.remove();
+    particlesRef.current.length = 0;
+    setFlying(false);
+  }, [phase]);
+
+  const spawnBurst = React.useCallback((x, y, count, color, spread, upward) => {
+    const field = fieldRef.current; if (!field) return;
+    for (let i = 0; i < count; i++) {
+      const el = document.createElement('div');
+      const size = 4 + Math.random() * 8;
+      el.style.cssText = `position:absolute;left:0;top:0;width:${size}px;height:${size}px;background:${color};border-radius:2px;pointer-events:none;will-change:transform,opacity;`;
+      field.appendChild(el);
+      particlesRef.current.push({
+        el, size,
+        x, y,
+        vx: (Math.random() - 0.5) * spread,
+        vy: (Math.random() - 1) * upward,
+        life: 1,
+        rot: Math.random() * 360,
+        vrot: (Math.random() - 0.5) * 20,
+      });
     }
-  }, [projectile, targets, combo, score, burst, bus, stageSize.w, stageSize.h]);
+  }, []);
+
+  const fireProjectile = (x, y, vx, vy) => {
+    const field = fieldRef.current; if (!field) return;
+    const el = document.createElement('img');
+    el.src = (window.ASSET_BASE||'assets/')+'cookie-spider.png';
+    el.alt = '';
+    el.draggable = false;
+    el.style.cssText = 'position:absolute;left:0;top:0;width:120px;height:120px;pointer-events:none;will-change:transform;z-index:50;filter:drop-shadow(0 4px 12px rgba(0,0,0,0.5));';
+    field.appendChild(el);
+    projectileRef.current = { x, y, vx, vy, rot: 0, el };
+    setFlying(true);
+  };
 
   // ── round timer ───────────────────────────────────────────────────
   React.useEffect(() => {
     if (phase !== 'playing') return;
     if (time <= 0) {
       setPhase('end');
-      bus.send({ type: 'end', totalScore: score, player: playerName, at: Date.now() });
-      // Record this run in the session leaderboard so it persists across rounds.
-      try { recordScore(playerName || 'PLAYER', score); } catch (e) {}
+      bus.send({ type: 'end', totalScore: scoreRef.current, player: playerName, at: Date.now() });
+      try { recordScore(playerName || 'PLAYER', scoreRef.current); } catch (e) {}
       return;
     }
     const t = setTimeout(() => setTime((s) => s - 1), 1000);
     return () => clearTimeout(t);
-  }, [phase, time, score, bus]);
+  }, [phase, time, bus, playerName]);
 
   const startGame = (nameOverride) => {
+    scoreRef.current = 0; comboRef.current = 0;
     setScore(0); setCombo(0); setTime(ROUND_SECONDS);
-    setTargets([]); setProjectile(null); setSfx([]);
+    setSfx([]);
     setPhase('playing');
     const name = (nameOverride ?? playerName) || '';
     bus.send({ type: 'start', player: name, at: Date.now() });
@@ -220,37 +309,26 @@ function IpadInner({ tweaks = {}, scaleHints = {}, autoplay = false }) {
   // Drives the slingshot automatically: aims at a live target, releases,
   // and loops the round. Used when this iPad is rendered in the preview
   // canvas so spectators see real gameplay reactivity on both screens.
-  const targetsRef    = React.useRef(targets);
-  const projectileRef = React.useRef(projectile);
-  const phaseRef      = React.useRef(phase);
-  React.useEffect(() => { targetsRef.current    = targets;    }, [targets]);
-  React.useEffect(() => { projectileRef.current = projectile; }, [projectile]);
-  React.useEffect(() => { phaseRef.current      = phase;      }, [phase]);
-
   React.useEffect(() => {
     if (!autoplay) return;
     let alive = true;
     const wait = (ms) => new Promise((r) => setTimeout(() => alive && r(), ms));
 
     const fireOnce = async () => {
-      // Pick a live target; prefer those nearer center / mid-air
-      const ts = targetsRef.current;
+      const ts = Array.from(targetsRef.current.values());
       if (!ts.length) return false;
+      const { w, h } = stageSizeRef.current;
       const target = ts.reduce((best, t) => {
-        const score = -(Math.abs(t.x - stageSize.w / 2)) - Math.abs(t.y - stageSize.h * 0.4);
+        const score = -(Math.abs(t.x - w / 2)) - Math.abs(t.y - h * 0.4);
         return (!best || score > best.score) ? { t, score } : best;
       }, null).t;
 
-      // Solve a slingshot release that lands a projectile near target.
-      // Projectile uses: vx = dx * 0.12 * powerMul, vy = (dy * 0.12 * powerMul) - 4
-      // and gravity ~ 0.7 * gravityMul per tick (tick≈16ms but applied in raf).
-      // We approximate by trial: brute-force scan release angles/distances.
       const tx = target.x, ty = target.y;
-      const ax = anchor.x, ay = anchor.y - 30;
+      const a = anchorRef.current;
+      const ax = a.x, ay = a.y - 30;
       let best = null;
       for (let dist = 120; dist <= 240; dist += 20) {
         for (let ang = -2.6; ang <= -0.5; ang += 0.12) {
-          // aim point is opposite to release direction
           const aimX = ax - Math.cos(ang) * dist;
           const aimY = ay - Math.sin(ang) * dist;
           const dx = ax - aimX, dy = ay - aimY;
@@ -262,40 +340,31 @@ function IpadInner({ tweaks = {}, scaleHints = {}, autoplay = false }) {
             px += vx; py += vy; vy += 0.7 * gravityMul;
             const d = Math.hypot(px - tx, py - ty);
             if (d < minD) minD = d;
-            if (py > stageSize.h + 50) break;
+            if (py > h + 50) break;
           }
           if (!best || minD < best.minD) best = { aimX, aimY, minD };
         }
       }
       if (!best) return false;
-      // jitter so it looks human (and occasionally misses)
       const jitter = 18;
       const aimX = best.aimX + (Math.random() - 0.5) * jitter;
       const aimY = best.aimY + (Math.random() - 0.5) * jitter;
 
-      // Animated drag-back over ~350ms
       setAim({ x: ax, y: ay });
       const steps = 14;
       for (let i = 1; i <= steps; i++) {
         if (!alive) return false;
         const k = i / steps;
-        // ease-out
         const e = 1 - Math.pow(1 - k, 2);
         setAim({ x: ax + (aimX - ax) * e, y: ay + (aimY - ay) * e });
         await wait(22);
       }
       await wait(140);
       if (!alive || phaseRef.current !== 'playing') return false;
-      // Release — mimics onPointerUp
       const dx = ax - aimX, dy = ay - aimY;
       const power = Math.min(1, Math.hypot(dx, dy) / 220);
       if (power >= 0.15) {
-        setProjectile({
-          x: ax, y: ay,
-          vx: dx * 0.12 * powerMul,
-          vy: dy * 0.12 * powerMul - 4,
-          rot: 0,
-        });
+        fireProjectile(ax, ay, dx * 0.12 * powerMul, dy * 0.12 * powerMul - 4);
         bus.send({ type: 'throw', power, at: Date.now() });
       }
       setAim(null);
@@ -304,7 +373,6 @@ function IpadInner({ tweaks = {}, scaleHints = {}, autoplay = false }) {
 
     const loop = async () => {
       while (alive) {
-        // start a fresh round when on attract or end
         if (phaseRef.current !== 'playing') {
           await wait(1100);
           if (!alive) return;
@@ -312,9 +380,8 @@ function IpadInner({ tweaks = {}, scaleHints = {}, autoplay = false }) {
           await wait(800);
           continue;
         }
-        // wait for projectile to clear and a target to be in flight
         if (projectileRef.current) { await wait(120); continue; }
-        if (!targetsRef.current.length) { await wait(180); continue; }
+        if (!targetsRef.current.size) { await wait(180); continue; }
         const ok = await fireOnce();
         await wait(ok ? 700 + Math.random() * 400 : 250);
       }
@@ -322,20 +389,18 @@ function IpadInner({ tweaks = {}, scaleHints = {}, autoplay = false }) {
     const startT = setTimeout(loop, 600);
     return () => { alive = false; clearTimeout(startT); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoplay, stageSize.w, stageSize.h]);
+  }, [autoplay]);
 
   // ── sling input ───────────────────────────────────────────────────
   const dragging = React.useRef(false);
   const dragStart = React.useRef({ x: 0, y: 0 }); // where the finger touched down
   const onPointerDown = (e) => {
-    if (phase !== 'playing' || projectile) return;
+    if (phase !== 'playing' || projectileRef.current) return;
     const rect = stageRef.current.getBoundingClientRect();
     const x = (e.touches?.[0]?.clientX ?? e.clientX) - rect.left;
     const y = (e.touches?.[0]?.clientY ?? e.clientY) - rect.top;
     dragging.current = true;
     dragStart.current = { x, y };
-    // Aim starts AT the anchor (power = 0). Power builds only as the finger
-    // moves AWAY from where it first touched down.
     setAim({ x: anchor.x, y: anchor.y });
   };
   const onPointerMove = (e) => {
@@ -343,11 +408,8 @@ function IpadInner({ tweaks = {}, scaleHints = {}, autoplay = false }) {
     const rect = stageRef.current.getBoundingClientRect();
     const x = (e.touches?.[0]?.clientX ?? e.clientX) - rect.left;
     const y = (e.touches?.[0]?.clientY ?? e.clientY) - rect.top;
-    // Aim = anchor + (finger movement since touchdown). Tapping without moving
-    // keeps power at 0; you have to drag to charge the slingshot.
     let dx = x - dragStart.current.x;
     let dy = y - dragStart.current.y;
-    // clamp drag distance to a max pull
     const d = Math.hypot(dx, dy);
     const max = 260;
     if (d > max) { dx = dx / d * max; dy = dy / d * max; }
@@ -362,16 +424,8 @@ function IpadInner({ tweaks = {}, scaleHints = {}, autoplay = false }) {
     const dist = Math.hypot(dx, dy);
     const power = Math.min(1, dist / 240);
     if (power < 0.10) { setAim(null); return; }
-    // Velocity scales linearly with drag distance — small drag = soft throw,
-    // full drag = full power. The upward kick is also proportional so weak
-    // throws don't get an artificial boost that masks the input.
     const k = 0.13 * powerMul;
-    setProjectile({
-      x: anchor.x, y: anchor.y - 30,
-      vx: dx * k,
-      vy: dy * k - 3.2 * power * powerMul,
-      rot: 0,
-    });
+    fireProjectile(anchor.x, anchor.y - 30, dx * k, dy * k - 3.2 * power * powerMul);
     setAim(null);
     bus.send({ type: 'throw', power, at: Date.now() });
   };
@@ -439,46 +493,14 @@ function IpadInner({ tweaks = {}, scaleHints = {}, autoplay = false }) {
       {/* HUD */}
       {phase === 'playing' && <IpadHUD score={score} combo={combo} time={time} />}
 
-      {/* targets */}
-      {targets.map((t) => (
-        <img key={t.id} src={t.archetype.img} alt="" style={{
-          position: 'absolute',
-          left: t.x - t.archetype.size / 2,
-          top:  t.y - t.archetype.size / 2,
-          width: t.archetype.size, height: t.archetype.size,
-          transform: `rotate(${t.rot}deg)`,
-          filter: t.archetype.bonus ? 'drop-shadow(0 0 24px #FFD60A)' : 'drop-shadow(0 6px 18px rgba(0,0,0,0.4))',
-          pointerEvents: 'none',
-        }} />
-      ))}
-
-      {/* particles */}
-      {parts.map((p) => (
-        <div key={p.id} style={{
-          position: 'absolute', left: p.x - p.size / 2, top: p.y - p.size / 2,
-          width: p.size, height: p.size, background: p.color,
-          opacity: p.life, transform: `rotate(${p.rot}deg)`,
-          borderRadius: 2, pointerEvents: 'none',
-        }} />
-      ))}
+      {/* Imperative play layer — targets, projectile, particles live here */}
+      <div ref={fieldRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} />
 
       {/* SFX labels */}
       {sfx.map((s) => <SfxLabel key={s.id} {...s} />)}
 
-      {/* projectile */}
-      {projectile && (
-        <img src={(window.ASSET_BASE||'assets/')+'cookie-spider.png'} alt="" style={{
-          position: 'absolute',
-          left: projectile.x - 60, top: projectile.y - 60,
-          width: 120, height: 120,
-          transform: `rotate(${projectile.rot}deg)`,
-          filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.5))',
-          pointerEvents: 'none', zIndex: 50,
-        }} />
-      )}
-
       {/* slingshot anchor + web strand */}
-      {phase === 'playing' && !projectile && (
+      {phase === 'playing' && !flying && (
         <>
           <SlingshotAnchor x={anchor.x} y={anchor.y} aim={aim} showHints={showHints} />
         </>
@@ -641,7 +663,7 @@ function IpadAttract({ onStart }) {
     <div style={{
       position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center', padding: '4%', textAlign: 'center',
-      background: 'rgba(10,26,63,0.62)', backdropFilter: 'blur(2px)', zIndex: 200,
+      background: 'rgba(10,26,63,0.78)', zIndex: 200,
       overflow: 'hidden',
     }}>
       <img src={(window.ASSET_BASE||'assets/')+'lockup-pos.png'} style={{ width: '46%', maxWidth: 420, marginBottom: 14 }} />
@@ -762,7 +784,7 @@ function IpadNameEntry({ initial, onSubmit, onBack }) {
     <div style={{
       position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center', padding: '4%', textAlign: 'center',
-      background: 'rgba(10,26,63,0.85)', backdropFilter: 'blur(3px)', zIndex: 200,
+      background: 'rgba(10,26,63,0.92)', zIndex: 200,
       overflow: 'hidden',
     }}>
       <h2 style={{
