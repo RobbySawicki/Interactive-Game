@@ -8,6 +8,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="../assets/skin.css" />
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+  <script src="firebase-config.js"></script>
 </head>
 <body data-campaign="OREO" data-campaign-tag="CAMPAIGN">
   <main class="shell">
@@ -72,7 +75,11 @@
       <div class="rail">
         <div class="left">CAMPAIGN · OREO</div>
         <div class="center"><span class="dot"></span> 4 surfaces · synced</div>
-        <div class="right"><a class="back-link" href="/">Back to access</a></div>
+        <div class="right" style="display:flex;gap:12px;align-items:center;justify-content:flex-end;">
+          <button id="reset-session" type="button" class="back-link" style="background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer;">Reset session</button>
+          <span style="opacity:.4;">·</span>
+          <a class="back-link" href="/">Back to access</a>
+        </div>
       </div>
 
       <div class="rail" style="margin-top:-8px;border-top:0;padding-top:0;">
@@ -93,5 +100,42 @@
   </main>
 
   <script src="../assets/campaign-shell.js"></script>
+  <script>
+    // Reset session: wipes the leaderboard from Firebase + localStorage so
+    // every connected iPad/truck display clears live. Used by operators
+    // between events; gated by a confirm prompt to avoid accidental taps.
+    (function () {
+      var btn = document.getElementById('reset-session');
+      if (!btn) return;
+      btn.addEventListener('click', async function () {
+        if (!window.confirm('Reset the session? This wipes all scores from the leaderboard on every connected device.')) return;
+        var prev = btn.textContent;
+        btn.textContent = 'Resetting…';
+        btn.disabled = true;
+        try {
+          try { localStorage.removeItem('oreo-stuf-of-legends:leaderboard'); } catch (e) {}
+          var cfg = window.FIREBASE_CONFIG;
+          var sessionId = window.SYNC_SESSION_ID || 'oreo';
+          var fbReady = typeof firebase !== 'undefined'
+            && cfg && typeof cfg.databaseURL === 'string'
+            && cfg.databaseURL.indexOf('YOUR_') === -1;
+          if (fbReady) {
+            if (!firebase.apps.length) firebase.initializeApp(cfg);
+            var db = firebase.database();
+            await Promise.all([
+              db.ref('sessions/' + sessionId + '/scores').remove(),
+              db.ref('sessions/' + sessionId + '/events').remove(),
+            ]);
+          }
+          btn.textContent = 'Session reset ✓';
+          setTimeout(function () { btn.textContent = prev; btn.disabled = false; }, 1800);
+        } catch (err) {
+          console.error('Reset failed', err);
+          btn.textContent = 'Reset failed';
+          setTimeout(function () { btn.textContent = prev; btn.disabled = false; }, 2200);
+        }
+      });
+    })();
+  </script>
 </body>
 </html>
