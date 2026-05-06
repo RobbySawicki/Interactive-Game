@@ -70,16 +70,25 @@
           <div class="desc">Square QR drop with comic-burst pulse on every hit.</div>
           <span class="tag">1 : 1 · QR</span>
         </a>
+
+        <a class="hub-card" href="#" id="reset-session" role="button">
+          <div class="idx">
+            <span>05 · RESET</span>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+              <path d="M3 8a5 5 0 1 0 1.5-3.5" stroke-linecap="round"/>
+              <path d="M3 3v3h3" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="name">Reset session</div>
+          <div class="desc">Wipe the leaderboard across every connected iPad and truck display.</div>
+          <span class="tag" data-reset-status>Operator</span>
+        </a>
       </div>
 
       <div class="rail">
         <div class="left">CAMPAIGN · OREO</div>
         <div class="center"><span class="dot"></span> 4 surfaces · synced</div>
-        <div class="right" style="display:flex;gap:12px;align-items:center;justify-content:flex-end;">
-          <button id="reset-session" type="button" class="back-link" style="background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer;">Reset session</button>
-          <span style="opacity:.4;">·</span>
-          <a class="back-link" href="/">Back to access</a>
-        </div>
+        <div class="right"><a class="back-link" href="/">Back to access</a></div>
       </div>
 
       <div class="rail" style="margin-top:-8px;border-top:0;padding-top:0;">
@@ -105,15 +114,19 @@
     // every connected iPad/truck display clears live. Used by operators
     // between events; gated by a confirm prompt to avoid accidental taps.
     (function () {
-      var btn = document.getElementById('reset-session');
-      if (!btn) return;
-      btn.addEventListener('click', async function () {
+      var card = document.getElementById('reset-session');
+      if (!card) return;
+      var status = card.querySelector('[data-reset-status]');
+      var busy = false;
+      card.addEventListener('click', async function (e) {
+        e.preventDefault();
+        if (busy) return;
         if (!window.confirm('Reset the session? This wipes all scores from the leaderboard on every connected device.')) return;
-        var prev = btn.textContent;
-        btn.textContent = 'Resetting…';
-        btn.disabled = true;
+        busy = true;
+        var prev = status ? status.textContent : '';
+        if (status) status.textContent = 'Resetting…';
         try {
-          try { localStorage.removeItem('oreo-stuf-of-legends:leaderboard'); } catch (e) {}
+          try { localStorage.removeItem('oreo-stuf-of-legends:leaderboard'); } catch (e2) {}
           var cfg = window.FIREBASE_CONFIG;
           var sessionId = window.SYNC_SESSION_ID || 'oreo';
           var fbReady = typeof firebase !== 'undefined'
@@ -127,12 +140,12 @@
               db.ref('sessions/' + sessionId + '/events').remove(),
             ]);
           }
-          btn.textContent = 'Session reset ✓';
-          setTimeout(function () { btn.textContent = prev; btn.disabled = false; }, 1800);
+          if (status) status.textContent = 'Cleared ✓';
+          setTimeout(function () { if (status) status.textContent = prev; busy = false; }, 1800);
         } catch (err) {
           console.error('Reset failed', err);
-          btn.textContent = 'Reset failed';
-          setTimeout(function () { btn.textContent = prev; btn.disabled = false; }, 2200);
+          if (status) status.textContent = 'Failed';
+          setTimeout(function () { if (status) status.textContent = prev; busy = false; }, 2200);
         }
       });
     })();
