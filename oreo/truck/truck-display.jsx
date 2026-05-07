@@ -46,63 +46,63 @@ function TruckDisplay() {
 }
 
 function SideInner() {
-  const [phase, setPhase]    = React.useState('attract'); // attract | live | end
-  const [score, setScore]    = React.useState(0);
-  const [combo, setCombo]    = React.useState(0);
-  const [player, setPlayer]  = React.useState('');
-  const [pop, setPop]        = React.useState(0);
-  const [reaction, setReaction] = React.useState(null); // {word, t}
-  const [callouts, setCallouts] = React.useState([]);
-  const [splats, setSplats]  = React.useState([]);
-  const [parts, burst]       = useParticles();
-  const lastEventRef = React.useRef(0);
+  // Live frame from the iPad. Carries scene state (targets, projectile,
+  // aim, slingshot anchor) plus HUD info (score, combo, time, phase). When
+  // no frame has arrived in the last 8s we fall back to the attract layout.
+  const frame = useFrame();
+  const [splats, setSplats] = React.useState([]);
   const calloutId = React.useRef(0);
 
-  // Reaction words that flash under the score on each hit. Combo level
-  // picks from progressively bigger words.
-  const reactionFor = (combo) => {
-    if (combo >= 6) return ['LEGENDARY!', 'COSMIC!', 'UNREAL!'][combo % 3];
-    if (combo >= 4) return ['INCREDIBLE!', 'AMAZING!', 'SPECTACULAR!'][combo % 3];
-    if (combo >= 2) return ['NICE!', 'BOOM!', 'SWEET!'][combo % 3];
-    return ['HIT!', 'POW!', 'WHACK!'][combo % 3];
-  };
+  // rAF tick so we re-render between frame snapshots and dead-reckon
+  // target / projectile motion smoothly.
+  const [, force] = React.useReducer((s) => s + 1, 0);
+  React.useEffect(() => {
+    let raf;
+    const step = () => { force(); raf = requestAnimationFrame(step); };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, []);
 
+  // Hit splats stay event-driven (using the existing 'hit' message) so the
+  // SFX / +points callout still pops at the moment of impact, layered over
+  // the mirrored playfield.
   useSync((m) => {
-    lastEventRef.current = Date.now();
-    if (m.type === 'start') {
-      setPhase('live'); setScore(0); setCombo(0); setSplats([]); setCallouts([]); setReaction(null);
-      if (m.player !== undefined) setPlayer(m.player || '');
-    } else if (m.type === 'hit') {
-      setScore(m.totalScore);
-      setCombo(m.combo);
-      setPop((p) => p + 1);
-      setReaction({ word: reactionFor(m.combo), t: Date.now() });
-      const sx = m.x * SIDE_W;
-      const sy = m.y * SIDE_H;
+    if (m.type === 'hit') {
       const id = ++calloutId.current;
-      // Light splat at hit position (kept subtle so left score area stays clean)
-      setSplats((s) => [...s, { id, x: sx, y: sy, sfx: m.sfx, combo: m.combo, points: m.points }]);
+      setSplats((s) => [...s, { id, nx: m.x, ny: m.y, sfx: m.sfx, combo: m.combo, points: m.points }]);
       setTimeout(() => setSplats((s) => s.filter((x) => x.id !== id)), 1100);
-    } else if (m.type === 'miss') {
-      setCombo(0);
-    } else if (m.type === 'end') {
-      setPhase('end'); setScore(m.totalScore); setReaction(null);
-      if (m.player !== undefined) setPlayer(m.player || '');
+    } else if (m.type === 'start' || m.type === 'end') {
+      setSplats([]);
     }
   });
 
-  React.useEffect(() => {
-    const iv = setInterval(() => {
-      if (Date.now() - lastEventRef.current > 8000 && phase !== 'attract') setPhase('attract');
-    }, 2000);
-    return () => clearInterval(iv);
-  }, [phase]);
+  const fresh  = !!(frame && (Date.now() - frame.at) < 8000);
+  const phase  = fresh ? frame.phase : 'attract';
+  const score  = fresh ? frame.score : 0;
+  const combo  = fresh ? frame.combo : 0;
+  const time   = fresh ? frame.time  : 0;
+  const player = fresh ? (frame.player || '') : '';
+
+  // Letterbox the iPad stage into the left 75% of the side panel. Splats
+  // and the mirror share the same geometry so callouts land on the cookie
+  // they exploded.
+  const W = SIDE_W * 0.75;
+  const H = SIDE_H;
+  const stageW = (fresh && frame.stageW) || 1024;
+  const stageH = (fresh && frame.stageH) || 768;
+  const mScale = Math.min(W / stageW, H / stageH);
+  const dispW = stageW * mScale;
+  const dispH = stageH * mScale;
+  const offX  = (W - dispW) / 2;
+  const offY  = (H - dispH) / 2;
+
+  const showAttract = !fresh || phase === 'attract' || phase === 'name';
+  const showEnd     = fresh && phase === 'end';
+  const showMirror  = fresh && phase === 'playing';
 
   return (
     <div style={{
       position: 'relative', width: '100%', height: '100%', overflow: 'hidden',
-      // Off-white / colorful bg per spec ("Avoid solid white"). Use the comic
-      // city background so creatives can read against the dark vignette.
       background: `#0A1A3F url('${window.ASSET_BASE||'assets/'}marvel-background.jpeg') center/cover no-repeat`,
       fontFamily: BRAND.ui, color: '#fff',
     }}>
@@ -126,41 +126,216 @@ function SideInner() {
         opacity: 0.08, mixBlendMode: 'screen', pointerEvents: 'none',
       }} />
 
-      {/* Phase content — constrained to left 75% so the persistent leaderboard
-          on the right 25% is always visible (attract / live / end). */}
+      {/* Left 75% — iPad mirror playfield + HUD, attract/end overlays.
+          Right 25% reserved for the persistent leaderboard. */}
       <div style={{
-        position: 'absolute', left: 0, top: 0, width: '75%', height: '100%',
-        zIndex: 10,
+        position: 'absolute', left: 0, top: 0, width: W, height: H,
+        zIndex: 10, overflow: 'hidden',
       }}>
-        {phase === 'attract' && <SideAttract />}
-        {phase === 'live'    && <SideLive score={score} combo={combo} pop={pop} reaction={reaction} player={player} />}
-        {phase === 'end'     && <SideEnd  score={score} player={player} />}
+        {showMirror && (
+          <IpadMirror
+            frame={frame}
+            offX={offX} offY={offY}
+            dispW={dispW} dispH={dispH}
+            scale={mScale}
+          />
+        )}
+        {showMirror && <MirrorHUD score={score} combo={combo} time={time} player={player} W={W} />}
+        {showAttract && <SideAttract />}
+        {showEnd     && <SideEnd score={score} player={player} />}
       </div>
 
-      {/* Persistent leaderboard — always visible on the right 25%. Highlights
-          the active player's live score during the 'live' phase. */}
+      {/* Persistent leaderboard — always visible on the right 25%.
+          Highlights the active player's live score during play. */}
       <SideLeaderboard
         liveScore={score}
         livePlayer={player}
-        isLive={phase === 'live'}
+        isLive={showMirror}
       />
 
-      {/* Splats — only render on the left 75% so they don't overlap the leaderboard */}
-      {phase === 'live' && (
+      {/* Hit splats overlay the mirror, mapped through the same letterbox
+          geometry so each callout lands on its target. */}
+      {showMirror && splats.length > 0 && (
         <div style={{
-          position: 'absolute', left: 0, top: 0, width: '75%', height: '100%',
+          position: 'absolute', left: 0, top: 0, width: W, height: H,
           overflow: 'hidden', pointerEvents: 'none', zIndex: 25,
         }}>
           {splats.map((s) => (
-            // splats were placed in panel-coords (0..SIDE_W). Now we
-            // re-map x into the left 75% of the panel (0..SIDE_W*0.75).
-            <SideSplat key={s.id} {...s} x={s.x * 0.75} />
+            <SideSplat
+              key={s.id}
+              {...s}
+              x={offX + s.nx * dispW}
+              y={offY + s.ny * dispH}
+            />
           ))}
         </div>
       )}
     </div>
   );
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// IpadMirror — renders the iPad's playing field on the truck side panel.
+// Targets, projectile and slingshot are positioned in iPad stage coordinates
+// scaled down to the letterbox area. Velocities in the frame let us advance
+// motion between snapshots so the cookies don't visibly step at the iPad's
+// 16Hz broadcast cadence.
+function IpadMirror({ frame, offX, offY, dispW, dispH, scale }) {
+  const dt = Math.max(0, Math.min(20, (Date.now() - frame.at) / 16.67));
+  const archByKind = React.useMemo(() => {
+    const m = new Map();
+    for (const t of TARGETS) m.set(t.kind, t);
+    return m;
+  }, []);
+  const a = frame.anchor;
+  const aim = frame.aim;
+  const p = frame.projectile;
+  const ax = a ? a.x * scale : 0;
+  const ay = a ? a.y * scale : 0;
+
+  return (
+    <div style={{
+      position: 'absolute', left: offX, top: offY, width: dispW, height: dispH,
+      overflow: 'hidden',
+    }}>
+      {(frame.targets || []).map((t) => {
+        const x   = t.x   + (t.vx   || 0) * dt;
+        const rot = (t.rot || 0) + (t.vrot || 0) * dt;
+        const dy  = Math.sin((Date.now() / 600) + (t.bobPhase || 0)) * (t.bobAmp || 0) * 0.15;
+        const arch = archByKind.get(t.kind);
+        const img = arch ? arch.img : 'assets/cookie-venom.png';
+        const drawX = (x - t.size / 2) * scale;
+        const drawY = (t.y + dy - t.size / 2) * scale;
+        return (
+          <img key={t.id}
+            src={(window.ASSET_BASE||'assets/') + img.replace(/^assets\//, '')}
+            alt="" draggable={false}
+            style={{
+              position: 'absolute', left: 0, top: 0,
+              width: t.size * scale, height: t.size * scale,
+              transform: `translate3d(${drawX}px, ${drawY}px, 0) rotate(${rot}deg)`,
+              filter: t.bonus ? 'drop-shadow(0 0 24px #FFD60A)' : 'drop-shadow(0 0 10px rgba(0,0,0,0.4))',
+              pointerEvents: 'none',
+            }}
+          />
+        );
+      })}
+
+      {/* Slingshot Y posts + loaded cookie + web strand (only when a
+          projectile isn't currently in the air, matching the iPad). */}
+      {a && !p && (
+        <SlingMirror anchor={a} aim={aim} scale={scale} />
+      )}
+
+      {/* Projectile, dead-reckoned with gravity */}
+      {p && (() => {
+        const px = p.x + (p.vx || 0) * dt;
+        const py = p.y + (p.vy || 0) * dt + 0.5 * (frame.gravity || 0.7) * dt * dt;
+        const pr = (p.rot || 0) + 18 * dt;
+        return (
+          <img src={(window.ASSET_BASE||'assets/')+'cookie-spider.png'} draggable={false} alt="" style={{
+            position: 'absolute', left: 0, top: 0,
+            width: 120 * scale, height: 120 * scale,
+            transform: `translate3d(${(px - 60) * scale}px, ${(py - 60) * scale}px, 0) rotate(${pr}deg)`,
+            filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.5))',
+            pointerEvents: 'none', zIndex: 50,
+          }} />
+        );
+      })()}
+
+      {/* Slingshot anchor reference — keeps the layout grounded even when
+          the slingshot itself is hidden mid-flight. */}
+      {a && p && (
+        <div style={{
+          position: 'absolute', left: ax - 4 * scale, top: ay - 10 * scale,
+          width: 8 * scale, height: 80 * scale, background: '#0a0a0a',
+          borderRadius: 4 * scale, zIndex: 30,
+        }} />
+      )}
+    </div>
+  );
+}
+
+// SlingMirror — visual replica of the iPad's slingshot anchor for spectators.
+function SlingMirror({ anchor, aim, scale }) {
+  const x = anchor.x * scale;
+  const y = anchor.y * scale;
+  const cookieX = (aim ? aim.x : anchor.x)       * scale;
+  const cookieY = (aim ? aim.y : anchor.y - 30)  * scale;
+  const off30 = 30 * scale;
+  return (
+    <>
+      {aim && (
+        <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 40 }}>
+          <line x1={x - off30} y1={y} x2={cookieX} y2={cookieY} stroke="#fff" strokeWidth={4 * scale} strokeLinecap="round" />
+          <line x1={x + off30} y1={y} x2={cookieX} y2={cookieY} stroke="#fff" strokeWidth={4 * scale} strokeLinecap="round" />
+          <line x1={x - off30} y1={y} x2={cookieX} y2={cookieY} stroke={BRAND.blue} strokeWidth={1.5 * scale} strokeDasharray={`${3*scale} ${5*scale}`} />
+          <line x1={x + off30} y1={y} x2={cookieX} y2={cookieY} stroke={BRAND.blue} strokeWidth={1.5 * scale} strokeDasharray={`${3*scale} ${5*scale}`} />
+        </svg>
+      )}
+      <div style={{
+        position: 'absolute', left: x - 4 * scale, top: y - 10 * scale,
+        width: 8 * scale, height: 80 * scale,
+        background: '#0a0a0a', borderRadius: 4 * scale, zIndex: 30,
+      }} />
+      <div style={{
+        position: 'absolute', left: x - 38 * scale, top: y - 14 * scale,
+        width: 8 * scale, height: 30 * scale,
+        background: '#0a0a0a', borderRadius: 4 * scale, transform: 'rotate(-15deg)', zIndex: 30,
+      }} />
+      <div style={{
+        position: 'absolute', left: x + off30, top: y - 14 * scale,
+        width: 8 * scale, height: 30 * scale,
+        background: '#0a0a0a', borderRadius: 4 * scale, transform: 'rotate(15deg)', zIndex: 30,
+      }} />
+      <img src={(window.ASSET_BASE||'assets/')+'cookie-spider.png'} alt="" draggable={false} style={{
+        position: 'absolute',
+        left: cookieX - 60 * scale, top: cookieY - 60 * scale,
+        width: 120 * scale, height: 120 * scale,
+        filter: aim ? 'drop-shadow(0 0 22px rgba(0,176,255,0.9))' : 'drop-shadow(0 4px 12px rgba(0,0,0,0.5))',
+        zIndex: 45, pointerEvents: 'none',
+      }} />
+    </>
+  );
+}
+
+// MirrorHUD — compact comic chips along the top of the mirror echoing the
+// iPad's SCORE / TIME / COMBO HUD so passers-by can read the live numbers
+// from across the lot. Sized for the LED min-text spec (≥ 25pt).
+function MirrorHUD({ score, combo, time, player, W }) {
+  return (
+    <div style={{
+      position: 'absolute', left: 12, right: 12, top: 10,
+      display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+      pointerEvents: 'none', zIndex: 60, fontFamily: BRAND.display,
+      gap: 8,
+    }}>
+      <div style={hudChip}>
+        <div style={hudLabel}>SCORE</div>
+        <div style={{ ...hudValue, color: BRAND.blue }}>{(score|0).toLocaleString()}</div>
+      </div>
+      <div style={{ ...hudChip, textAlign: 'center' }}>
+        <div style={hudLabel}>TIME</div>
+        <div style={{ ...hudValue, color: time <= 5 ? BRAND.marvelRed : '#0a0a0a' }}>{Math.max(0, time|0)}s</div>
+      </div>
+      <div style={{ ...hudChip, textAlign: 'right', opacity: combo > 1 ? 1 : 0, transition: 'opacity 200ms' }}>
+        <div style={hudLabel}>COMBO</div>
+        <div style={{ ...hudValue, color: BRAND.marvelRed }}>×{Math.max(combo, 1)}</div>
+      </div>
+    </div>
+  );
+}
+
+const hudChip = {
+  background: '#fff',
+  border: '3px solid #0a0a0a',
+  borderRadius: 10,
+  boxShadow: '4px 4px 0 #0a0a0a',
+  padding: '6px 12px',
+  fontWeight: 900,
+};
+const hudLabel = { fontSize: 12, opacity: 0.75, fontFamily: BRAND.ui, fontWeight: 700, letterSpacing: '0.1em', color: '#0a0a0a' };
+const hudValue = { fontSize: 30, lineHeight: 1, WebkitTextStroke: '2px #0a0a0a' };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SIDE — Attract: horizontal banner layout (cookie left, lockup+CTA right)
@@ -199,90 +374,6 @@ function SideAttract() {
         }}>
           PLAY ON THE iPAD →
         </div>
-      </div>
-    </div>
-  );
-}
-
-// SIDE — Live: score + reaction word. Leaderboard is rendered persistently
-// by the parent (SideInner) so it's visible across attract / live / end.
-function SideLive({ score, combo, pop, reaction, player }) {
-  return (
-    <div style={{ position: 'absolute', inset: 0 }}>
-      <div style={{
-        position: 'absolute', inset: 0,
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        padding: '20px 24px',
-      }}>
-        {/* OREO lockup, top-left */}
-        <img src={(window.ASSET_BASE||'assets/')+'lockup-pos.png'} style={{
-          position: 'absolute', top: 14, left: 18, width: 110, zIndex: 5,
-        }} />
-        {/* LIVE pill, top-right of left panel */}
-        <div style={{
-          position: 'absolute', top: 14, right: 18, zIndex: 5,
-          display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 12px',
-          background: BRAND.marvelRed, color: '#fff', border: '3px solid #0a0a0a',
-          borderRadius: 8, fontFamily: BRAND.display, fontSize: 22, fontWeight: 900,
-          boxShadow: '3px 3px 0 #0a0a0a',
-        }}>
-          <span style={{
-            width: 10, height: 10, borderRadius: '50%', background: '#fff',
-            animation: 'side-score-pop 0.8s ease-in-out infinite',
-          }}/>
-          LIVE
-        </div>
-
-        {/* SCORE label */}
-        <div style={{
-          fontFamily: BRAND.ui, fontSize: 28, fontWeight: 900, letterSpacing: '0.22em',
-          color: BRAND.yellow, textShadow: '2px 2px 0 #0a0a0a', lineHeight: 1, marginBottom: 4,
-        }}>SCORE</div>
-
-        {/* Score number — hero element */}
-        <div key={pop} style={{
-          fontFamily: BRAND.display, fontSize: 200, lineHeight: 0.85, color: '#fff',
-          WebkitTextStroke: '6px #0a0a0a', textShadow: '9px 9px 0 ' + BRAND.marvelRed,
-          animation: 'side-score-pop 320ms cubic-bezier(.2,.8,.2,1)',
-          letterSpacing: '-0.01em', textAlign: 'center',
-        }}>
-          {score.toLocaleString()}
-        </div>
-
-        {/* Reaction line: COMBO multiplier OR last hit word */}
-        <div style={{
-          height: 56, marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          gap: 18,
-        }}>
-          {combo > 1 && (
-            <div style={{
-              fontFamily: BRAND.display, fontSize: 42, color: BRAND.yellow,
-              WebkitTextStroke: '3px #0a0a0a', textShadow: '3px 3px 0 #0a0a0a', lineHeight: 1,
-              animation: 'side-shake 240ms',
-            }}>
-              ×{combo}
-            </div>
-          )}
-          {reaction && (
-            <div key={reaction.t} style={{
-              fontFamily: BRAND.display, fontSize: 44, color: '#fff',
-              WebkitTextStroke: '3px #0a0a0a', textShadow: '4px 4px 0 ' + BRAND.marvelRed,
-              lineHeight: 1, animation: 'side-reaction 600ms ease-out',
-              letterSpacing: '0.04em',
-            }}>
-              {reaction.word}
-            </div>
-          )}
-        </div>
-
-        <style>{`
-          @keyframes side-reaction {
-            0%   { opacity: 0; transform: scale(0.6) rotate(-4deg); }
-            30%  { opacity: 1; transform: scale(1.18) rotate(2deg); }
-            70%  { opacity: 1; transform: scale(1) rotate(0deg); }
-            100% { opacity: 0; transform: scale(1) rotate(0deg); }
-          }
-        `}</style>
       </div>
     </div>
   );

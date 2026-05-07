@@ -65,8 +65,11 @@ function getDb() {
 class FirebaseBus {
   constructor() {
     this.listeners = new Set();
+    this.frameListeners = new Set();
+    this._frameSubscribed = false;
     const db = getDb();
     this.eventsRef = db.ref(`sessions/${SESSION_ID}/events`);
+    this.frameRef  = db.ref(`sessions/${SESSION_ID}/frame`);
     // Only fire callbacks for events created after we attached, so reloads
     // don't replay history.
     const cutoff = Date.now() - 2000;
@@ -88,14 +91,37 @@ class FirebaseBus {
     this.listeners.forEach((fn) => fn(m));
   }
   on(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
+  // High-frequency scene state. Uses set() on a dedicated ref so only the
+  // latest frame is stored — keeps the events queue from flooding.
+  sendFrame(frame) {
+    const m = { ...frame, at: frame.at || Date.now() };
+    this.frameRef.set(m);
+    this.frameListeners.forEach((fn) => fn(m));
+  }
+  onFrame(fn) {
+    this.frameListeners.add(fn);
+    if (!this._frameSubscribed) {
+      this._frameSubscribed = true;
+      this.frameRef.on('value', (snap) => {
+        const v = snap.val();
+        if (v) this.frameListeners.forEach((cb) => cb(v));
+      });
+    }
+    return () => this.frameListeners.delete(fn);
+  }
 }
 
 class LocalBus {
   constructor() {
     this.listeners = new Set();
+    this.frameListeners = new Set();
     try {
       this.bc = new BroadcastChannel(SYNC_CHANNEL);
-      this.bc.onmessage = (e) => this.listeners.forEach((fn) => fn(e.data));
+      this.bc.onmessage = (e) => {
+        const m = e.data;
+        if (m && m.__frame) this.frameListeners.forEach((fn) => fn(m));
+        else this.listeners.forEach((fn) => fn(m));
+      };
     } catch (e) { this.bc = null; }
   }
   send(msg) {
@@ -103,6 +129,12 @@ class LocalBus {
     this.listeners.forEach((fn) => fn(msg));
   }
   on(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
+  sendFrame(frame) {
+    const m = { __frame: true, ...frame, at: frame.at || Date.now() };
+    if (this.bc) this.bc.postMessage(m);
+    this.frameListeners.forEach((fn) => fn(m));
+  }
+  onFrame(fn) { this.frameListeners.add(fn); return () => this.frameListeners.delete(fn); }
 }
 
 // Lazily-created single shared bus per page.
@@ -264,6 +296,14 @@ function useSync(handler) {
   React.useEffect(() => getBus().on((m) => ref.current && ref.current(m)), []);
 }
 
+// Hook: subscribe to the current scene frame from the iPad. The truck uses
+// this to mirror the active gameplay in real time.
+function useFrame() {
+  const [frame, setFrame] = React.useState(null);
+  React.useEffect(() => getBus().onFrame((f) => setFrame(f)), []);
+  return frame;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Target archetypes
 // Point values: small/fast = high points, big/slow = low points.
@@ -364,7 +404,7 @@ function useParticles() {
 // Export
 Object.assign(window, {
   BRAND, SFX_HIT, SFX_COMBO, SFX_BIG, SFX_MISS, pickSfx,
-  SyncBus, getBus, useSync,
+  SyncBus, getBus, useSync, useFrame,
   readLeaderboard, writeLeaderboard, recordScore, clearLeaderboard, useLeaderboard,
   TARGETS, pickTargetKind,
   SfxLabel, useParticles,
