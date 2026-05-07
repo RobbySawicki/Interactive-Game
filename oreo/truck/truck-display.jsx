@@ -83,17 +83,19 @@ function SideInner() {
   const time   = fresh ? frame.time  : 0;
   const player = fresh ? (frame.player || '') : '';
 
-  // Letterbox the iPad stage into the left 75% of the side panel. Splats
-  // and the mirror share the same geometry so callouts land on the cookie
-  // they exploded.
-  const W = SIDE_W * 0.75;
+  // Size the mirror area to exactly the iPad's stage aspect at full panel
+  // height — no letterboxing — so the leaderboard rail can claim all the
+  // remaining horizontal space and show longer player names. Hard cap at
+  // 75% of panel width so a portrait iPad can't push the leaderboard off.
   const H = SIDE_H;
   const stageW = (fresh && frame.stageW) || 1024;
   const stageH = (fresh && frame.stageH) || 768;
-  const mScale = Math.min(W / stageW, H / stageH);
-  const dispW = stageW * mScale;
+  const maxW   = SIDE_W * 0.75;
+  const mScale = Math.min(H / stageH, maxW / stageW);
+  const W = stageW * mScale;
+  const dispW = W;
   const dispH = stageH * mScale;
-  const offX  = (W - dispW) / 2;
+  const offX  = 0;
   const offY  = (H - dispH) / 2;
 
   const showAttract = !fresh || phase === 'attract' || phase === 'name';
@@ -145,12 +147,13 @@ function SideInner() {
         {showEnd     && <SideEnd score={score} player={player} />}
       </div>
 
-      {/* Persistent leaderboard — always visible on the right 25%.
-          Highlights the active player's live score during play. */}
+      {/* Persistent leaderboard — fills whatever horizontal space the
+          mirror leaves so longer player names fit without ellipsis. */}
       <SideLeaderboard
         liveScore={score}
         livePlayer={player}
         isLive={showMirror}
+        leftEdge={W}
       />
 
       {/* Hit splats overlay the mirror, mapped through the same letterbox
@@ -418,7 +421,7 @@ function SideEnd({ score, player }) {
 // side panel across all phases (attract / live / end). When isLive is true,
 // the active player is slotted in as a highlighted "live" row that updates
 // in real time so spectators can see them climb.
-function SideLeaderboard({ liveScore = 0, livePlayer = '', isLive = false }) {
+function SideLeaderboard({ liveScore = 0, livePlayer = '', isLive = false, leftEdge = null }) {
   const stored = useLeaderboard(20);
   const leaderboard = React.useMemo(() => {
     const liveName = (livePlayer || 'YOU').toUpperCase();
@@ -440,7 +443,9 @@ function SideLeaderboard({ liveScore = 0, livePlayer = '', isLive = false }) {
 
   return (
     <div style={{
-      position: 'absolute', right: 0, top: 0, width: '25%', height: '100%',
+      position: 'absolute',
+      right: 0, top: 0, height: '100%',
+      ...(leftEdge != null ? { left: leftEdge } : { width: '25%' }),
       background: 'rgba(10,10,10,0.55)', borderLeft: '4px solid #0a0a0a',
       display: 'flex', flexDirection: 'column', padding: '18px 16px', gap: 8,
       backdropFilter: 'blur(2px)', zIndex: 20,
