@@ -88,6 +88,12 @@ function IpadInner({ tweaks = {}, scaleHints = {}, autoplay = false }) {
   const comboRef       = React.useRef(0);
   const phaseRef       = React.useRef(phase);
   React.useEffect(() => { phaseRef.current = phase; }, [phase]);
+  const aimRef         = React.useRef(null);
+  React.useEffect(() => { aimRef.current = aim; }, [aim]);
+  const timeRef        = React.useRef(time);
+  React.useEffect(() => { timeRef.current = time; }, [time]);
+  const playerRef      = React.useRef(playerName);
+  React.useEffect(() => { playerRef.current = playerName; }, [playerName]);
 
   const bus = getBus();
 
@@ -240,6 +246,44 @@ function IpadInner({ tweaks = {}, scaleHints = {}, autoplay = false }) {
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [gravityMul, bus]);
+
+  // ── frame broadcast ───────────────────────────────────────────────
+  // Snapshots the live scene (targets, projectile, aim, score) at ~16Hz
+  // and pushes it onto the frame channel so the truck side LED can mirror
+  // the iPad. Velocities are included so the receiver can dead-reckon
+  // between snapshots for smooth motion.
+  React.useEffect(() => {
+    const iv = setInterval(() => {
+      const targets = [];
+      for (const t of targetsRef.current.values()) {
+        targets.push({
+          id: String(t.id),
+          kind: t.archetype.kind,
+          size: t.archetype.size,
+          bonus: !!t.archetype.bonus,
+          x: t.x, y: t.y, rot: t.rot,
+          vx: t.vx, vrot: t.vrot,
+          bobPhase: t.bobPhase, bobAmp: t.bobAmp,
+        });
+      }
+      const p = projectileRef.current;
+      bus.sendFrame({
+        phase: phaseRef.current,
+        player: playerRef.current,
+        score: scoreRef.current,
+        combo: comboRef.current,
+        time: timeRef.current,
+        aim: aimRef.current ? { x: aimRef.current.x, y: aimRef.current.y } : null,
+        anchor: anchorRef.current ? { x: anchorRef.current.x, y: anchorRef.current.y } : null,
+        projectile: p ? { x: p.x, y: p.y, rot: p.rot, vx: p.vx, vy: p.vy } : null,
+        targets,
+        gravity: 0.7 * gravityMul,
+        stageW: stageSizeRef.current.w,
+        stageH: stageSizeRef.current.h,
+      });
+    }, 60);
+    return () => clearInterval(iv);
+  }, [bus, gravityMul]);
 
   // Reset play layer when leaving 'playing'
   React.useEffect(() => {
