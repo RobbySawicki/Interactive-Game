@@ -1,0 +1,906 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>PULSE — Tap to the beat</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0b0b0a;
+      --bg-2: #111110;
+      --ink: #f4f1ea;
+      --ink-2: #b8b3a7;
+      --ink-3: #6a6557;
+      --line: #1f1e1b;
+      --line-2: #2a2825;
+      --accent: oklch(0.86 0.19 110);
+      --hot:    oklch(0.74 0.22 25);
+      --cool:   oklch(0.78 0.16 220);
+      --good:   oklch(0.78 0.16 150);
+      --accent-ink: #0b0b0a;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html, body {
+      margin: 0; padding: 0;
+      height: 100%; width: 100%;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Geist", system-ui, -apple-system, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden;
+      overscroll-behavior: none;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    body::before {
+      content: "";
+      position: fixed; inset: 0;
+      background-image:
+        radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,0.04) 0, transparent 50%),
+        radial-gradient(1px 1px at 70% 80%, rgba(255,255,255,0.03) 0, transparent 50%),
+        radial-gradient(1px 1px at 40% 60%, rgba(255,255,255,0.04) 0, transparent 50%);
+      background-size: 3px 3px, 5px 5px, 7px 7px;
+      pointer-events: none;
+      z-index: 1;
+      mix-blend-mode: overlay;
+      opacity: 0.55;
+    }
+
+    .frame {
+      position: fixed; inset: 18px;
+      pointer-events: none;
+      z-index: 2;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+    }
+    .corner {
+      position: fixed;
+      width: 10px; height: 10px;
+      border: 1px solid var(--ink-3);
+      z-index: 3;
+      pointer-events: none;
+    }
+    .corner.tl { top: 13px; left: 13px; border-right: 0; border-bottom: 0; }
+    .corner.tr { top: 13px; right: 13px; border-left: 0; border-bottom: 0; }
+    .corner.bl { bottom: 13px; left: 13px; border-right: 0; border-top: 0; }
+    .corner.br { bottom: 13px; right: 13px; border-left: 0; border-top: 0; }
+
+    .topbar, .botbar {
+      position: fixed;
+      left: 32px; right: 32px;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 16px;
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      color: var(--ink-3);
+      z-index: 6;
+      text-transform: uppercase;
+      pointer-events: none;
+    }
+    .topbar { top: 28px; }
+    .botbar { bottom: 28px; }
+    .topbar a, .botbar a { color: var(--ink-3); text-decoration: none; pointer-events: auto; }
+    .topbar a:hover, .botbar a:hover { color: var(--ink); }
+
+    .brand {
+      display: inline-flex; align-items: center; gap: 10px;
+      color: var(--ink);
+      pointer-events: auto;
+    }
+    .brand-mark {
+      width: 14px; height: 14px;
+      border: 1px solid var(--ink);
+      position: relative;
+    }
+    .brand-mark::after {
+      content: "";
+      position: absolute; inset: 3px;
+      background: var(--accent);
+    }
+    .brand strong { font-weight: 600; letter-spacing: 0.02em; }
+
+    /* HUD: score / time / combo */
+    .hud {
+      position: fixed;
+      top: 64px; left: 32px; right: 32px;
+      display: flex; justify-content: space-between; align-items: flex-start;
+      gap: 16px;
+      z-index: 5;
+      pointer-events: none;
+    }
+    .hud-block {
+      display: grid;
+      gap: 4px;
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+    }
+    .hud-block.right { text-align: right; }
+    .hud-label {
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--ink-3);
+    }
+    .hud-value {
+      font-family: "Geist", sans-serif;
+      font-weight: 500;
+      font-size: clamp(28px, 5vw, 44px);
+      letter-spacing: -0.02em;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+      color: var(--ink);
+    }
+    .hud-value.combo { color: var(--accent); }
+    .hud-value.combo.zero { color: var(--ink-3); }
+    .hud-value.time.warn { color: var(--hot); }
+
+    /* progress bar for time */
+    .timebar {
+      position: fixed;
+      left: 32px; right: 32px;
+      bottom: 60px;
+      height: 2px;
+      background: var(--line);
+      z-index: 5;
+      overflow: hidden;
+    }
+    .timebar > i {
+      display: block;
+      height: 100%;
+      width: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--hot));
+      transform-origin: left;
+      transition: transform 0.12s linear;
+    }
+
+    /* arena — full-screen tap surface */
+    .arena {
+      position: fixed; inset: 0;
+      z-index: 4;
+      cursor: crosshair;
+    }
+
+    /* dots are absolutely positioned spans inside .arena */
+    .dot {
+      position: absolute;
+      width: var(--size, 88px);
+      height: var(--size, 88px);
+      margin-left: calc(var(--size, 88px) / -2);
+      margin-top: calc(var(--size, 88px) / -2);
+      border-radius: 50%;
+      pointer-events: auto;
+      cursor: pointer;
+      transform: scale(0);
+      animation: pop-in 180ms cubic-bezier(0.2, 0.9, 0.3, 1.4) forwards;
+      will-change: transform, opacity;
+    }
+    .dot::before {
+      content: "";
+      position: absolute; inset: 0;
+      border-radius: 50%;
+      background: radial-gradient(circle at 50% 50%, var(--col, var(--accent)) 0%, color-mix(in oklch, var(--col, var(--accent)) 40%, transparent) 60%, transparent 72%);
+      filter: blur(0.5px);
+    }
+    .dot::after {
+      content: "";
+      position: absolute; inset: 18%;
+      border-radius: 50%;
+      background: var(--col, var(--accent));
+      box-shadow:
+        0 0 24px color-mix(in oklch, var(--col, var(--accent)) 60%, transparent),
+        0 0 4px color-mix(in oklch, var(--col, var(--accent)) 90%, transparent) inset;
+    }
+    .dot.gold::after {
+      background: linear-gradient(135deg, #fff7c2, #ffd34d);
+      box-shadow: 0 0 36px #ffd34d, 0 0 6px #fff inset;
+    }
+    .dot.gold::before {
+      background: radial-gradient(circle at 50% 50%, #ffd34d 0%, rgba(255,211,77,0.35) 60%, transparent 72%);
+    }
+
+    /* the shrinking ring tells you how long until it expires */
+    .dot .ring {
+      position: absolute; inset: -2px;
+      border-radius: 50%;
+      border: 1.5px solid color-mix(in oklch, var(--col, var(--accent)) 70%, transparent);
+      transform: scale(1.6);
+      opacity: 0.95;
+      animation: ring-shrink var(--life, 1400ms) linear forwards;
+    }
+    @keyframes ring-shrink {
+      to { transform: scale(0.95); opacity: 0; }
+    }
+    @keyframes pop-in {
+      to { transform: scale(1); }
+    }
+
+    .dot.hit {
+      animation: dot-hit 360ms ease-out forwards;
+      pointer-events: none;
+    }
+    @keyframes dot-hit {
+      0%   { transform: scale(1); opacity: 1; }
+      40%  { transform: scale(1.6); opacity: 0.9; }
+      100% { transform: scale(2.4); opacity: 0; }
+    }
+    .dot.miss {
+      animation: dot-miss 280ms ease-in forwards;
+      pointer-events: none;
+    }
+    @keyframes dot-miss {
+      to { transform: scale(0.4); opacity: 0; filter: blur(2px); }
+    }
+
+    /* floating +score popup */
+    .pop {
+      position: absolute;
+      pointer-events: none;
+      font-family: "Geist", sans-serif;
+      font-weight: 600;
+      font-size: 22px;
+      letter-spacing: -0.01em;
+      color: var(--accent);
+      text-shadow: 0 0 12px color-mix(in oklch, var(--accent) 40%, transparent);
+      animation: pop-rise 720ms ease-out forwards;
+      transform: translate(-50%, -50%);
+    }
+    .pop.gold { color: #ffd34d; text-shadow: 0 0 14px #ffd34d; }
+    .pop.miss { color: var(--hot); text-shadow: none; opacity: 0.9; }
+    @keyframes pop-rise {
+      0%   { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
+      20%  { transform: translate(-50%, -90%) scale(1); opacity: 1; }
+      100% { transform: translate(-50%, -180%) scale(1); opacity: 0; }
+    }
+
+    /* overlay screens (start / end) */
+    .overlay {
+      position: fixed; inset: 0;
+      display: grid;
+      place-items: center;
+      z-index: 7;
+      background: radial-gradient(ellipse at center, rgba(11,11,10,0.4) 0%, rgba(11,11,10,0.92) 60%);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      transition: opacity 280ms ease;
+    }
+    .overlay[hidden] {
+      display: none !important;
+    }
+    .overlay.fade-out { opacity: 0; pointer-events: none; }
+
+    .panel {
+      width: min(560px, calc(100% - 64px));
+      display: grid;
+      gap: 28px;
+      text-align: center;
+      padding: 8px;
+    }
+    .eyebrow {
+      display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      font-size: 11px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--ink-2);
+    }
+    .eyebrow::before, .eyebrow::after {
+      content: "";
+      width: 28px; height: 1px;
+      background: var(--accent);
+    }
+    h1.title {
+      margin: 0;
+      font-family: "Geist", sans-serif;
+      font-weight: 500;
+      font-size: clamp(56px, 12vw, 120px);
+      letter-spacing: -0.04em;
+      line-height: 0.92;
+    }
+    h1.title em {
+      font-family: "Instrument Serif", serif;
+      font-style: italic;
+      font-weight: 400;
+      color: var(--ink-2);
+      letter-spacing: -0.01em;
+    }
+    .lede {
+      max-width: 420px;
+      margin: 0 auto;
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--ink-2);
+    }
+
+    .start-btn {
+      justify-self: center;
+      display: inline-flex; align-items: center; gap: 12px;
+      padding: 16px 28px;
+      background: var(--accent);
+      color: var(--accent-ink);
+      border: 1px solid var(--accent);
+      border-radius: 999px;
+      font-family: "Geist", sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      transition: transform 0.12s ease, box-shadow 0.18s ease;
+      box-shadow: 0 0 0 0 color-mix(in oklch, var(--accent) 30%, transparent);
+    }
+    .start-btn:hover { transform: translateY(-1px); box-shadow: 0 0 0 6px color-mix(in oklch, var(--accent) 16%, transparent); }
+    .start-btn:active { transform: translateY(0); }
+    .start-btn svg { width: 14px; height: 14px; }
+
+    .stat-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      max-width: 460px;
+      margin: 0 auto;
+    }
+    .stat {
+      padding: 14px 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--bg-2);
+      display: grid;
+      gap: 6px;
+    }
+    .stat .l {
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--ink-3);
+    }
+    .stat .v {
+      font-family: "Geist", sans-serif;
+      font-weight: 500;
+      font-size: 28px;
+      letter-spacing: -0.02em;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+    .stat .v.accent { color: var(--accent); }
+
+    .best {
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      font-size: 11px;
+      color: var(--ink-3);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .best b { color: var(--ink); font-weight: 500; }
+
+    .new-best {
+      display: inline-block;
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      font-size: 10px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--accent-ink);
+      background: var(--accent);
+      padding: 4px 10px;
+      border-radius: 999px;
+      margin-bottom: 4px;
+    }
+
+    .actions-row {
+      display: flex; justify-content: center; gap: 12px; flex-wrap: wrap;
+    }
+    .ghost-btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 12px 18px;
+      background: transparent;
+      color: var(--ink-2);
+      border: 1px solid var(--line-2);
+      border-radius: 999px;
+      font-family: "Geist", sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0.01em;
+      cursor: pointer;
+      text-decoration: none;
+      transition: border-color 0.18s ease, color 0.18s ease;
+    }
+    .ghost-btn:hover { color: var(--ink); border-color: var(--ink-3); }
+
+    .hint-row {
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      font-size: 11px;
+      color: var(--ink-3);
+      letter-spacing: 0.06em;
+    }
+    .hint-row kbd {
+      font-family: inherit;
+      font-size: 10px;
+      padding: 2px 6px;
+      border: 1px solid var(--line-2);
+      border-radius: 3px;
+      background: var(--bg-2);
+      color: var(--ink-2);
+    }
+
+    /* countdown */
+    .countdown {
+      position: fixed; inset: 0;
+      display: grid; place-items: center;
+      z-index: 8;
+      pointer-events: none;
+    }
+    .countdown span {
+      font-family: "Geist", sans-serif;
+      font-weight: 500;
+      font-size: clamp(140px, 28vw, 280px);
+      letter-spacing: -0.05em;
+      color: var(--ink);
+      animation: count-pop 900ms ease-out forwards;
+      opacity: 0;
+    }
+    @keyframes count-pop {
+      0%   { transform: scale(0.5); opacity: 0; }
+      30%  { transform: scale(1); opacity: 1; }
+      100% { transform: scale(1.4); opacity: 0; }
+    }
+
+    @media (max-width: 720px) {
+      .topbar, .botbar { left: 22px; right: 22px; font-size: 10px; }
+      .hud { left: 22px; right: 22px; top: 56px; }
+      .timebar { left: 22px; right: 22px; bottom: 52px; }
+      .frame { inset: 12px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="frame"></div>
+  <div class="corner tl"></div>
+  <div class="corner tr"></div>
+  <div class="corner bl"></div>
+  <div class="corner br"></div>
+
+  <header class="topbar">
+    <a href="/" class="brand" aria-label="Back to access">
+      <span class="brand-mark"></span>
+      <strong>PULSE</strong>
+    </a>
+    <span id="status">READY</span>
+  </header>
+
+  <div class="hud" aria-hidden="true">
+    <div class="hud-block">
+      <div class="hud-label">Score</div>
+      <div class="hud-value" id="score">0</div>
+    </div>
+    <div class="hud-block right">
+      <div class="hud-label">Combo</div>
+      <div class="hud-value combo zero" id="combo">×0</div>
+    </div>
+  </div>
+
+  <div class="hud" style="top: auto; bottom: 80px;" aria-hidden="true">
+    <div class="hud-block">
+      <div class="hud-label">Time</div>
+      <div class="hud-value time" id="time">30.0</div>
+    </div>
+    <div class="hud-block right">
+      <div class="hud-label">Hits</div>
+      <div class="hud-value" id="hits">0</div>
+    </div>
+  </div>
+
+  <div class="timebar" aria-hidden="true"><i id="timebar-fill"></i></div>
+
+  <main class="arena" id="arena" aria-label="Tap arena"></main>
+
+  <!-- start screen -->
+  <section class="overlay" id="start-screen" aria-modal="true" role="dialog">
+    <div class="panel">
+      <div class="eyebrow">Reflex · Sprint · 30s</div>
+      <h1 class="title">Pul<em>se</em></h1>
+      <p class="lede">Tap glowing dots before they fade. Chain hits to build a combo multiplier. Gold dots score big — but vanish faster.</p>
+      <button class="start-btn" id="start-btn" type="button">
+        Start
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+          <path d="M3 8h10M9 4l4 4-4 4" stroke-linecap="square" />
+        </svg>
+      </button>
+      <div class="best" id="best-line">Best · <b id="best">0</b></div>
+      <div class="hint-row"><span>Press</span> <kbd>Space</kbd> <span>to start</span></div>
+    </div>
+  </section>
+
+  <!-- end screen -->
+  <section class="overlay" id="end-screen" hidden aria-modal="true" role="dialog">
+    <div class="panel">
+      <div id="new-best-tag" class="new-best" hidden>New Best</div>
+      <div class="eyebrow">Run complete</div>
+      <h1 class="title" id="final-score">0</h1>
+      <div class="stat-row">
+        <div class="stat">
+          <span class="l">Hits</span>
+          <span class="v" id="final-hits">0</span>
+        </div>
+        <div class="stat">
+          <span class="l">Best Combo</span>
+          <span class="v accent" id="final-combo">×0</span>
+        </div>
+        <div class="stat">
+          <span class="l">Accuracy</span>
+          <span class="v" id="final-acc">0%</span>
+        </div>
+      </div>
+      <div class="actions-row">
+        <button class="start-btn" id="again-btn" type="button">
+          Play again
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+            <path d="M3 8h10M9 4l4 4-4 4" stroke-linecap="square" />
+          </svg>
+        </button>
+        <a class="ghost-btn" href="/">Exit</a>
+      </div>
+      <div class="best">Best · <b id="best-end">0</b></div>
+    </div>
+  </section>
+
+  <footer class="botbar">
+    <span>Interactive Media · Demo</span>
+    <span>v1.0</span>
+  </footer>
+
+  <script>
+  (() => {
+    const STORAGE_KEY = 'pulse:best';
+    const DURATION_MS = 30_000;
+
+    const arena      = document.getElementById('arena');
+    const scoreEl    = document.getElementById('score');
+    const comboEl    = document.getElementById('combo');
+    const timeEl     = document.getElementById('time');
+    const hitsEl     = document.getElementById('hits');
+    const barFill    = document.getElementById('timebar-fill');
+    const statusEl   = document.getElementById('status');
+    const bestEl     = document.getElementById('best');
+    const bestEndEl  = document.getElementById('best-end');
+
+    const startScreen = document.getElementById('start-screen');
+    const endScreen   = document.getElementById('end-screen');
+    const startBtn    = document.getElementById('start-btn');
+    const againBtn    = document.getElementById('again-btn');
+
+    const finalScore = document.getElementById('final-score');
+    const finalHits  = document.getElementById('final-hits');
+    const finalCombo = document.getElementById('final-combo');
+    const finalAcc   = document.getElementById('final-acc');
+    const newBestTag = document.getElementById('new-best-tag');
+
+    let state = {
+      running: false,
+      score: 0,
+      hits: 0,
+      attempts: 0,
+      combo: 0,
+      bestCombo: 0,
+      startTs: 0,
+      endsAt: 0,
+      nextSpawnAt: 0,
+      rafId: 0,
+      dots: new Set(),
+    };
+
+    const COL = {
+      base: 'oklch(0.86 0.19 110)',
+      cool: 'oklch(0.78 0.16 220)',
+      gold: 'gold',
+    };
+
+    const loadBest = () => {
+      try { return parseInt(localStorage.getItem(STORAGE_KEY) || '0', 10) || 0; }
+      catch { return 0; }
+    };
+    const saveBest = (n) => {
+      try { localStorage.setItem(STORAGE_KEY, String(n)); } catch {}
+    };
+
+    const renderBest = () => {
+      const b = loadBest();
+      bestEl.textContent = b;
+      bestEndEl.textContent = b;
+    };
+
+    // ── spawn ──────────────────────────────────────────────────────────
+    const spawnDot = () => {
+      const rect = arena.getBoundingClientRect();
+      const margin = 80;
+      const minX = margin, maxX = rect.width - margin;
+      const minY = margin + 40, maxY = rect.height - margin - 60;
+      if (maxX <= minX || maxY <= minY) return;
+      const x = minX + Math.random() * (maxX - minX);
+      const y = minY + Math.random() * (maxY - minY);
+
+      // difficulty curve: shorter life and smaller dots over time
+      const elapsed = performance.now() - state.startTs;
+      const t = Math.min(1, elapsed / DURATION_MS);
+      const life = Math.round(1500 - t * 700);   // 1500ms → 800ms
+      const size = Math.round(94 - t * 28);      // 94px  → 66px
+
+      const isGold = Math.random() < 0.08 + t * 0.05;
+      const isCool = !isGold && Math.random() < 0.35;
+
+      const el = document.createElement('span');
+      el.className = 'dot' + (isGold ? ' gold' : '');
+      el.style.left = x + 'px';
+      el.style.top  = y + 'px';
+      el.style.setProperty('--size', size + 'px');
+      el.style.setProperty('--life', life + 'ms');
+      el.style.setProperty('--col', isGold ? '#ffd34d' : (isCool ? COL.cool : COL.base));
+
+      const ring = document.createElement('span');
+      ring.className = 'ring';
+      el.appendChild(ring);
+
+      const meta = {
+        el, x, y, size,
+        bornAt: performance.now(),
+        life,
+        gold: isGold,
+        scoreVal: isGold ? 250 : 100,
+        expired: false,
+        hit: false,
+      };
+
+      el.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        if (!state.running || meta.hit || meta.expired) return;
+        registerHit(meta, e);
+      }, { passive: false });
+
+      arena.appendChild(el);
+      state.dots.add(meta);
+
+      // expire timer
+      meta.expireTimer = setTimeout(() => expireDot(meta), life + 60);
+    };
+
+    const removeDotEl = (meta) => {
+      state.dots.delete(meta);
+      if (meta.el && meta.el.parentNode) meta.el.parentNode.removeChild(meta.el);
+    };
+
+    const expireDot = (meta) => {
+      if (meta.hit || meta.expired) return;
+      meta.expired = true;
+      state.attempts += 1;
+      // missed dot resets combo
+      breakCombo();
+      meta.el.classList.add('miss');
+      setTimeout(() => removeDotEl(meta), 320);
+    };
+
+    const registerHit = (meta, ev) => {
+      meta.hit = true;
+      clearTimeout(meta.expireTimer);
+      state.hits += 1;
+      state.attempts += 1;
+      state.combo += 1;
+      if (state.combo > state.bestCombo) state.bestCombo = state.combo;
+
+      const mult = 1 + Math.floor(state.combo / 5) * 0.5; // ×1, ×1.5, ×2 ...
+      const gained = Math.round(meta.scoreVal * mult);
+      state.score += gained;
+
+      updateHud();
+      floatPop(meta.x, meta.y, '+' + gained, meta.gold);
+
+      meta.el.classList.add('hit');
+      setTimeout(() => removeDotEl(meta), 380);
+    };
+
+    const breakCombo = () => {
+      if (state.combo > 0) {
+        state.combo = 0;
+        updateHud();
+      }
+    };
+
+    const floatPop = (x, y, text, gold) => {
+      const p = document.createElement('span');
+      p.className = 'pop' + (gold ? ' gold' : '');
+      p.textContent = text;
+      p.style.left = x + 'px';
+      p.style.top  = y + 'px';
+      arena.appendChild(p);
+      setTimeout(() => p.remove(), 720);
+    };
+
+    // ── tap on empty space = miss ─────────────────────────────────────
+    arena.addEventListener('pointerdown', (e) => {
+      if (!state.running) return;
+      if (e.target !== arena) return; // hit a dot — handled there
+      breakCombo();
+      const x = e.clientX, y = e.clientY;
+      const p = document.createElement('span');
+      p.className = 'pop miss';
+      p.textContent = 'miss';
+      p.style.left = x + 'px';
+      p.style.top  = y + 'px';
+      arena.appendChild(p);
+      setTimeout(() => p.remove(), 720);
+    });
+
+    // ── HUD ────────────────────────────────────────────────────────────
+    const updateHud = () => {
+      scoreEl.textContent = state.score.toLocaleString();
+      hitsEl.textContent  = state.hits;
+      comboEl.textContent = '×' + state.combo;
+      comboEl.classList.toggle('zero', state.combo === 0);
+    };
+
+    const updateTimer = (now) => {
+      const remaining = Math.max(0, state.endsAt - now);
+      const secs = remaining / 1000;
+      timeEl.textContent = secs.toFixed(1);
+      timeEl.classList.toggle('warn', secs <= 5);
+      barFill.style.transform = 'scaleX(' + (remaining / DURATION_MS) + ')';
+      return remaining;
+    };
+
+    // ── main loop ──────────────────────────────────────────────────────
+    const loop = () => {
+      if (!state.running) return;
+      const now = performance.now();
+      const remaining = updateTimer(now);
+      if (remaining <= 0) { endRun(); return; }
+
+      if (now >= state.nextSpawnAt) {
+        // spawn cadence accelerates over the run
+        const t = Math.min(1, (now - state.startTs) / DURATION_MS);
+        const interval = 720 - t * 380; // 720ms → 340ms
+        const concurrent = Math.random() < 0.18 + t * 0.18 ? 2 : 1;
+        for (let i = 0; i < concurrent; i++) spawnDot();
+        state.nextSpawnAt = now + interval;
+      }
+      state.rafId = requestAnimationFrame(loop);
+    };
+
+    // ── lifecycle ──────────────────────────────────────────────────────
+    const startRun = () => {
+      // clear any leftovers
+      cancelAnimationFrame(state.rafId);
+      state.dots.forEach(m => { clearTimeout(m.expireTimer); removeDotEl(m); });
+      state.dots.clear();
+      arena.querySelectorAll('.pop').forEach(n => n.remove());
+
+      state.running = true;
+      state.score = 0;
+      state.hits = 0;
+      state.attempts = 0;
+      state.combo = 0;
+      state.bestCombo = 0;
+      state.startTs = performance.now();
+      state.endsAt = state.startTs + DURATION_MS;
+      state.nextSpawnAt = state.startTs + 200;
+      updateHud();
+      timeEl.textContent = (DURATION_MS / 1000).toFixed(1);
+      barFill.style.transform = 'scaleX(1)';
+      statusEl.textContent = 'LIVE';
+      state.rafId = requestAnimationFrame(loop);
+    };
+
+    const endRun = () => {
+      state.running = false;
+      cancelAnimationFrame(state.rafId);
+      // expire any remaining dots silently
+      state.dots.forEach(m => { clearTimeout(m.expireTimer); removeDotEl(m); });
+      state.dots.clear();
+      barFill.style.transform = 'scaleX(0)';
+      timeEl.textContent = '0.0';
+      timeEl.classList.remove('warn');
+      statusEl.textContent = 'OVER';
+
+      const acc = state.attempts > 0
+        ? Math.round((state.hits / state.attempts) * 100)
+        : 0;
+      const prevBest = loadBest();
+      const isNewBest = state.score > prevBest;
+      if (isNewBest) saveBest(state.score);
+      renderBest();
+
+      finalScore.textContent = state.score.toLocaleString();
+      finalHits.textContent  = state.hits;
+      finalCombo.textContent = '×' + state.bestCombo;
+      finalAcc.textContent   = acc + '%';
+      newBestTag.hidden = !isNewBest;
+
+      endScreen.hidden = false;
+      requestAnimationFrame(() => endScreen.classList.remove('fade-out'));
+    };
+
+    const showStart = () => {
+      endScreen.hidden = true;
+      startScreen.hidden = false;
+      startScreen.classList.remove('fade-out');
+    };
+
+    const beginCountdown = (after) => {
+      // brief 3-2-1 countdown, then start
+      const overlay = document.createElement('div');
+      overlay.className = 'countdown';
+      overlay.setAttribute('aria-hidden', 'true');
+      const text = document.createElement('span');
+      overlay.appendChild(text);
+      document.body.appendChild(overlay);
+
+      const seq = ['3', '2', '1', 'GO'];
+      let i = 0;
+      const tick = () => {
+        if (i >= seq.length) {
+          overlay.remove();
+          after();
+          return;
+        }
+        text.textContent = seq[i++];
+        // restart animation
+        text.style.animation = 'none';
+        text.offsetWidth; // reflow
+        text.style.animation = '';
+        setTimeout(tick, 600);
+      };
+      tick();
+    };
+
+    const launch = () => {
+      startScreen.classList.add('fade-out');
+      endScreen.classList.add('fade-out');
+      setTimeout(() => {
+        startScreen.hidden = true;
+        endScreen.hidden = true;
+      }, 280);
+      beginCountdown(startRun);
+    };
+
+    // ── input wiring ───────────────────────────────────────────────────
+    startBtn.addEventListener('click', launch);
+    againBtn.addEventListener('click', launch);
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === ' ' || e.code === 'Space' || e.key === 'Enter') {
+        if (!state.running && (!startScreen.hidden || !endScreen.hidden)) {
+          e.preventDefault();
+          launch();
+        }
+      } else if (e.key === 'Escape') {
+        if (state.running) {
+          state.endsAt = performance.now(); // ends on next frame
+        }
+      }
+    });
+
+    // pause / resume on visibility change to be polite
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && state.running) {
+        // freeze timer by shifting endsAt forward when we come back
+        state._hiddenAt = performance.now();
+      } else if (!document.hidden && state._hiddenAt) {
+        const delta = performance.now() - state._hiddenAt;
+        state.endsAt += delta;
+        state.nextSpawnAt += delta;
+        state._hiddenAt = 0;
+      }
+    });
+
+    renderBest();
+  })();
+  </script>
+</body>
+</html>
