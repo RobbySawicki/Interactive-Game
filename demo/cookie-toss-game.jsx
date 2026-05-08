@@ -8,20 +8,20 @@ function CookieToss({ tweaks = {} }) {
   );
 }
 
-// Fit-to-viewport scaler at a 1200x800 design canvas
+// Fit-to-viewport scaler at a 1200x800 landscape design canvas.
+// The game is played in landscape on iPad and mirrored to the truck's
+// landscape LED panel — when held in portrait, prompt the user to rotate.
 function Scaler({ children }) {
   const ref = React.useRef(null);
-  const [s, setS] = React.useState({ scale: 1, w: 1200, h: 800 });
+  const DW = 1200, DH = 800;
+  const [s, setS] = React.useState({ scale: 1, portrait: false });
   React.useEffect(() => {
     const el = ref.current; if (!el) return;
     const ro = new ResizeObserver(() => {
       const r = el.getBoundingClientRect();
       if (!r.width || !r.height) return;
-      const portrait = r.height > r.width;
-      const dw = portrait ? 800  : 1200;
-      const dh = portrait ? 1200 : 800;
-      const scale = Math.min(r.width / dw, r.height / dh);
-      setS({ scale, w: dw, h: dh });
+      const scale = Math.min(r.width / DW, r.height / DH);
+      setS({ scale, portrait: r.height > r.width });
     });
     ro.observe(el);
     return () => ro.disconnect();
@@ -30,10 +30,37 @@ function Scaler({ children }) {
     <div ref={ref} style={{ position:'relative', width:'100%', height:'100%', overflow:'hidden', background: PAL.cream }}>
       <div style={{
         position:'absolute', left:'50%', top:'50%',
-        width: s.w, height: s.h,
+        width: DW, height: DH,
         transform: `translate(-50%,-50%) scale(${s.scale})`,
         transformOrigin: 'center center',
       }}>{children}</div>
+      {s.portrait && <RotateHint />}
+    </div>
+  );
+}
+
+function RotateHint() {
+  return (
+    <div style={{
+      position:'absolute', inset:0, zIndex:9999,
+      display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+      background:'rgba(20,63,60,0.96)', color:PAL.creamHi, padding:'8% 6%',
+      textAlign:'center', fontFamily:PAL.display, gap:18,
+    }}>
+      <svg width="120" height="120" viewBox="0 0 120 120" style={{ animation:'rotate-pulse 1.6s ease-in-out infinite' }}>
+        <rect x="20" y="35" width="80" height="50" rx="8" fill="none" stroke={PAL.mustard} strokeWidth="6" />
+        <circle cx="30" cy="60" r="3" fill={PAL.mustard} />
+        <path d="M 60 18 a 28 28 0 0 1 28 12" stroke={PAL.mustard} strokeWidth="5" fill="none" strokeLinecap="round" />
+        <polygon points="86,28 92,32 84,38" fill={PAL.mustard} />
+      </svg>
+      <div style={{
+        fontSize:48, lineHeight:1, color:PAL.creamHi,
+        WebkitTextStroke:`3px ${PAL.ink}`, textShadow:`5px 5px 0 ${PAL.ink}`,
+      }}>ROTATE TO PLAY</div>
+      <div style={{ fontSize:22, opacity:0.85, fontFamily:PAL.ui, fontWeight:700, letterSpacing:'0.08em' }}>
+        TURN YOUR IPAD SIDEWAYS
+      </div>
+      <style>{`@keyframes rotate-pulse { 0%,100% { transform: rotate(0deg) } 50% { transform: rotate(90deg) } }`}</style>
     </div>
   );
 }
