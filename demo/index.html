@@ -3,167 +3,140 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Cookie Toss — Side-by-Side Preview</title>
-  <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
-  <style>
-    :root {
-      --ink:#1B1410; --teal:#1F5F5B; --tealDeep:#143F3C; --cream:#F5EDE0;
-      --mustard:#F0B22A; --coral:#E85A4F;
-    }
-    html, body {
-      margin:0; padding:0; min-height:100vh; width:100%;
-      background:
-        radial-gradient(ellipse at 20% 0%, rgba(31,95,91,0.22), transparent 60%),
-        radial-gradient(ellipse at 100% 100%, rgba(232,90,79,0.15), transparent 60%),
-        #0d0c0a;
-      color: var(--cream);
-      font-family: Inter, system-ui, sans-serif;
-    }
-    * { box-sizing: border-box; }
-    .wrap { max-width: 1480px; margin: 0 auto; padding: 28px clamp(16px, 4vw, 40px); }
-
-    header { display:flex; align-items:flex-end; justify-content:space-between; gap:24px; flex-wrap:wrap; margin-bottom: 22px; }
-    h1 {
-      font-family: 'Lilita One', system-ui, sans-serif; margin:0;
-      font-size: clamp(34px, 4vw, 52px); letter-spacing:0.02em; line-height:1;
-      color: var(--cream);
-      -webkit-text-stroke: 2px var(--ink);
-      text-shadow: 4px 4px 0 var(--mustard);
-    }
-    .sub { color: rgba(245,237,224,0.65); font-size:14px; letter-spacing:0.04em; max-width:62ch; line-height:1.5; }
-    .legend { font-size:12px; letter-spacing:0.14em; color: rgba(245,237,224,0.45); text-transform:uppercase; }
-
-    .grid {
-      display:grid; gap: 22px;
-      grid-template-columns: minmax(0, 1fr);
-    }
-    @media (min-width: 1100px) {
-      .grid {
-        grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
-        align-items: start;
-      }
-      .col-panel { display:grid; gap:22px; }
-    }
-
-    .device {
-      position:relative;
-      border-radius: 22px;
-      padding: 14px;
-      background: linear-gradient(180deg, #1a1816 0%, #0e0d0c 100%);
-      box-shadow:
-        inset 0 1px 0 rgba(255,255,255,0.06),
-        0 30px 70px -20px rgba(0,0,0,0.7),
-        0 0 0 1px rgba(255,255,255,0.04);
-    }
-    .device .tag {
-      position:absolute; top: -10px; left: 18px;
-      background: var(--mustard); color: var(--ink);
-      font-family: 'Lilita One', system-ui, sans-serif;
-      font-size: 13px; padding: 4px 12px; border-radius: 999px;
-      border: 2px solid var(--ink);
-      box-shadow: 3px 3px 0 var(--ink);
-      letter-spacing: 0.06em;
-    }
-    .device .tag.right { left:auto; right: 18px; }
-    .device .meta {
-      position:absolute; right: 14px; bottom: 14px; z-index:5;
-      font-size: 10px; letter-spacing: 0.2em; color: rgba(245,237,224,0.4);
-      pointer-events:none; font-family:'Lilita One', system-ui, sans-serif;
-    }
-
-    /* tablet: landscape 4:3 — iPad held sideways */
-    .tablet {
-      aspect-ratio: 4 / 3;
-      width: 100%;
-      max-width: 720px;
-    }
-    .tablet .screen {
-      width:100%; height:100%; border-radius: 12px; overflow:hidden;
-      background: var(--cream);
-      border: 1px solid #2a2825;
-    }
-
-    .panel-side .screen { aspect-ratio: 1007 / 432; width:100%; border-radius:10px; overflow:hidden; background:#000; border:1px solid #2a2825; }
-    .panel-rear { max-width: 460px; }
-    .panel-rear .screen { aspect-ratio: 1 / 1; width:100%; border-radius:10px; overflow:hidden; background:#000; border:1px solid #2a2825; }
-
-    iframe { width:100%; height:100%; border:0; display:block; background:#000; }
-
-    .toolbar {
-      margin-top: 26px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;
-      padding: 12px 14px; border-radius: 12px;
-      background: rgba(245,237,224,0.05);
-      border: 1px solid rgba(245,237,224,0.08);
-    }
-    .toolbar a, .toolbar button {
-      font-family: 'Lilita One', system-ui, sans-serif;
-      font-size: 14px; letter-spacing: 0.04em;
-      padding: 8px 14px; border-radius: 8px; cursor: pointer;
-      background: var(--cream); color: var(--ink);
-      border: 2px solid var(--ink);
-      box-shadow: 3px 3px 0 var(--ink);
-      text-decoration:none;
-    }
-    .toolbar a.alt { background: var(--mustard); }
-    .toolbar a.alt2 { background: var(--coral); color: var(--cream); }
-    .toolbar a:active, .toolbar button:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
-    .spacer { flex:1; }
-    .hint { font-size:12px; color: rgba(245,237,224,0.55); }
-
-    footer { margin-top: 30px; padding-top: 18px; border-top: 1px solid rgba(245,237,224,0.08); font-size:12px; color: rgba(245,237,224,0.45); line-height:1.6; }
-    code { background: rgba(245,237,224,0.08); padding: 1px 6px; border-radius:4px; font-size: 11.5px; }
-  </style>
+  <title>Cookie Toss — Demo · Interactive Media</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../assets/skin.css" />
 </head>
-<body>
-  <div class="wrap">
-    <header>
+<body data-campaign="DEMO" data-campaign-tag="CAMPAIGN">
+  <main class="shell">
+    <div class="stack">
       <div>
-        <h1>COOKIE TOSS</h1>
-        <div class="sub">A side-by-side preview of the two-screen experience: the player's tablet on the left, the LED panels on the right. Both share state through a sync bus, so a hit on the tablet pops a callout on the panel in real time.</div>
+        <div class="eyebrow">Campaign · Demo</div>
+        <h1 class="display">Toss the <em>cookie</em>.</h1>
       </div>
-      <div class="legend">SAME-BROWSER PREVIEW · BROADCAST CHANNEL</div>
-    </header>
 
-    <div class="grid">
-      <section class="device tablet">
-        <span class="tag">PLAYER · TABLET</span>
-        <div class="meta">10.9″ landscape</div>
-        <div class="screen">
-          <iframe src="player/index.html" title="Player game" allow="autoplay"></iframe>
+      <p class="lede">A two-screen activation. The player slings cookies on an iPad in landscape. The truck-side LED panel hypes the crowd in real time. Pick a surface to enter.</p>
+
+      <div class="hub-grid">
+        <a class="hub-card" href="preview-side-by-side.html">
+          <div class="idx">
+            <span>01 · PREVIEW</span>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+              <path d="M5 11L11 5M6 5h5v5" stroke-linecap="square"/>
+            </svg>
+          </div>
+          <div class="name">Side-by-side</div>
+          <div class="desc">iPad and truck mocked together — see both screens sync live.</div>
+          <span class="tag">Combined</span>
+        </a>
+
+        <a class="hub-card" href="player/">
+          <div class="idx">
+            <span>02 · PLAYER</span>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+              <path d="M5 11L11 5M6 5h5v5" stroke-linecap="square"/>
+            </svg>
+          </div>
+          <div class="name">iPad game</div>
+          <div class="desc">Drag-and-fling slingshot. 30-second sprint. Name entry. Leaderboard.</div>
+          <span class="tag">4 : 3 · Touch</span>
+        </a>
+
+        <a class="hub-card" href="panel/?view=side">
+          <div class="idx">
+            <span>03 · CROWD</span>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+              <path d="M5 11L11 5M6 5h5v5" stroke-linecap="square"/>
+            </svg>
+          </div>
+          <div class="name">Truck side LED</div>
+          <div class="desc">Live score, combo meter, reaction word, leaderboard rail.</div>
+          <span class="tag">1007 × 432</span>
+        </a>
+
+        <a class="hub-card" href="panel/?view=rear">
+          <div class="idx">
+            <span>04 · CAPTURE</span>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+              <path d="M5 11L11 5M6 5h5v5" stroke-linecap="square"/>
+            </svg>
+          </div>
+          <div class="name">Truck rear panel</div>
+          <div class="desc">Square QR drop with comic-burst pulse on every hit.</div>
+          <span class="tag">1 : 1 · QR</span>
+        </a>
+
+        <a class="hub-card" href="#" id="reset-session" role="button">
+          <div class="idx">
+            <span>05 · RESET</span>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+              <path d="M3 8a5 5 0 1 0 1.5-3.5" stroke-linecap="round"/>
+              <path d="M3 3v3h3" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="name">Reset session</div>
+          <div class="desc">Wipe the leaderboard across every connected iPad and truck display.</div>
+          <span class="tag" data-reset-status>Operator</span>
+        </a>
+      </div>
+
+      <div class="rail">
+        <div class="left">CAMPAIGN · DEMO</div>
+        <div class="center"><span class="dot"></span> 4 surfaces · synced</div>
+        <div class="right"><a class="back-link" href="/">Back to access</a></div>
+      </div>
+
+      <div class="rail" style="margin-top:-8px;border-top:0;padding-top:0;">
+        <div class="ticker" style="grid-column: 1 / -1;">
+          <div class="ticker-track">
+            <span>30-second sprint</span>
+            <span>Drag-and-fling slingshot</span>
+            <span>Combo streaks unlock POW! bursts</span>
+            <span>Live truck reactions on every throw</span>
+            <span>Session leaderboard · top 50</span>
+            <span>Tweaks panel for on-site dialing</span>
+            <span>BroadcastChannel sync · same browser</span>
+            <span>Generic, non-branded build</span>
+          </div>
         </div>
-      </section>
-
-      <div class="col-panel">
-        <section class="device panel-side">
-          <span class="tag right">PANEL · SIDE 1007×432</span>
-          <div class="meta">live mirror + leaderboard</div>
-          <div class="screen">
-            <iframe src="panel/index.html?view=side" title="Side panel" allow="autoplay"></iframe>
-          </div>
-        </section>
-
-        <section class="device panel-rear">
-          <span class="tag right">PANEL · REAR 432×432</span>
-          <div class="meta">scan to play</div>
-          <div class="screen">
-            <iframe src="panel/index.html?view=rear" title="Rear panel" allow="autoplay"></iframe>
-          </div>
-        </section>
       </div>
     </div>
+  </main>
 
-    <div class="toolbar">
-      <a class="alt" href="player/index.html" target="_blank" rel="noopener">Open player ↗</a>
-      <a href="panel/index.html" target="_blank" rel="noopener">Open both panels ↗</a>
-      <a href="panel/index.html?view=side" target="_blank" rel="noopener">Side only ↗</a>
-      <a class="alt2" href="panel/index.html?view=rear" target="_blank" rel="noopener">Rear only ↗</a>
-      <span class="spacer"></span>
-      <span class="hint">Tip: open the player and panel in separate tabs of the same browser — they sync automatically.</span>
-    </div>
-
-    <footer>
-      Generic, non-branded build. Sync uses <code>BroadcastChannel('cookie-toss')</code> on the same origin; for cross-device deployment, swap the bus in <code>game-shared.jsx</code> for a Firebase or websocket transport.
-    </footer>
-  </div>
+  <script src="../assets/campaign-shell.js"></script>
+  <script>
+    // Reset session: wipes the demo's localStorage leaderboard and tells
+    // every connected tab to clear via the BroadcastChannel sync bus.
+    (function () {
+      var card = document.getElementById('reset-session');
+      if (!card) return;
+      var status = card.querySelector('[data-reset-status]');
+      var busy = false;
+      card.addEventListener('click', function (e) {
+        e.preventDefault();
+        if (busy) return;
+        if (!window.confirm('Reset the session? This wipes all scores from the leaderboard on every connected device.')) return;
+        busy = true;
+        var prev = status ? status.textContent : '';
+        if (status) status.textContent = 'Resetting…';
+        try {
+          try { localStorage.removeItem('cookie-toss:leaderboard'); } catch (e2) {}
+          try {
+            var bc = new BroadcastChannel('cookie-toss');
+            bc.postMessage({ type: 'leaderboard', rows: [] });
+            bc.close();
+          } catch (e3) {}
+          if (status) status.textContent = 'Cleared ✓';
+          setTimeout(function () { if (status) status.textContent = prev; busy = false; }, 1800);
+        } catch (err) {
+          console.error('Reset failed', err);
+          if (status) status.textContent = 'Failed';
+          setTimeout(function () { if (status) status.textContent = prev; busy = false; }, 2200);
+        }
+      });
+    })();
+  </script>
 </body>
 </html>
